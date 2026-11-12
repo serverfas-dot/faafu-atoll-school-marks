@@ -1,0 +1,8 @@
+[functions.manage-staff]
+verify_jwt = false
+
+[functions.manage-student-photo]
+verify_jwt = false
+
+[functions.restore-backup]
+verify_jwt = false

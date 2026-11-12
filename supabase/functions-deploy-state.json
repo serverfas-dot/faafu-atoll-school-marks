@@ -1,0 +1,17 @@
+{
+  "projectId": "72831640",
+  "functions": {
+    "manage-staff": {
+      "hasChanged": false,
+      "hash": "4597e8dea519f2dc526f676e86d6133af130bb08afe3355c6c9de8b14e4dcf0f"
+    },
+    "manage-student-photo": {
+      "hasChanged": false,
+      "hash": "5f2c73a710e72381c985f46b7d1b1f6620a7b9bb601c90413251eaf041866f4d"
+    },
+    "restore-backup": {
+      "hasChanged": false,
+      "hash": "53650379aaff478ccda3ae7de7fb5ef8a2695c1f59b40f3da4510a076465e730"
+    }
+  }
+}
