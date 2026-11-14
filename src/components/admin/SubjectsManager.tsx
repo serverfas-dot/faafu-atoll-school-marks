@@ -4,12 +4,16 @@ import { SubjectCard } from '@/components/admin/SubjectCard';
 import { EmptyState, Notice, SelectField, Spinner } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useClasses } from '@/lib/useClasses';
+import { useSchoolYears } from '@/lib/useSchoolYears';
+import { MARKS_SHEET_YEAR } from '@/lib/school';
 import type { Assessment, Subject } from '@/lib/types';
 import { cardClass, inputClass, primaryButtonClass } from '@/lib/styles';
 
 export function SubjectsManager() {
   const { classes } = useClasses();
+  const { years, defaultYear } = useSchoolYears();
   const [classCode, setClassCode] = useState('1');
+  const [schoolYear, setSchoolYear] = useState(MARKS_SHEET_YEAR);
   const [subjects, setSubjects] = useState<Subject[] | null>(null);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [version, setVersion] = useState(0);
@@ -20,6 +24,10 @@ export function SubjectsManager() {
   useEffect(() => {
     if (classes.length > 0 && !classes.some((item) => item.value === classCode)) setClassCode(classes[0].value);
   }, [classes, classCode]);
+
+  useEffect(() => {
+    if (years.length > 0 && !years.some((item) => item.year === schoolYear)) setSchoolYear(defaultYear);
+  }, [defaultYear, schoolYear, years]);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,7 +47,8 @@ export function SubjectsManager() {
       if (list.length > 0) {
         const { data: assessmentRows, error: assessmentError } = await supabase
           .from('assessments')
-          .select('id, subject_id, semester, name, max_mark, weight, part, sort_order')
+          .select('id, subject_id, school_year, semester, name, max_mark, weight, part, sort_order')
+          .eq('school_year', schoolYear)
           .in('subject_id', list.map((subject) => subject.id))
           .order('sort_order');
         if (cancelled) return;
@@ -56,7 +65,7 @@ export function SubjectsManager() {
     return () => {
       cancelled = true;
     };
-  }, [classCode, version]);
+  }, [classCode, schoolYear, version]);
 
   const handleAddSubject = async (event: FormEvent) => {
     event.preventDefault();
@@ -78,7 +87,10 @@ export function SubjectsManager() {
 
   return (
     <div className="space-y-6">
-      <div className="max-w-xs">
+      <div className="grid max-w-xl gap-3 sm:grid-cols-2">
+        <SelectField label="School year" value={String(schoolYear)} onChange={(value) => setSchoolYear(Number(value))}>
+          {years.length === 0 ? <option value={String(MARKS_SHEET_YEAR)}>{MARKS_SHEET_YEAR}</option> : years.map((item) => <option key={item.year} value={item.year}>{item.year}</option>)}
+        </SelectField>
         <SelectField label="Class" value={classCode} onChange={setClassCode}>
           {classes.map((item) => (
             <option key={item.value} value={item.value}>
@@ -117,6 +129,7 @@ export function SubjectsManager() {
             <SubjectCard
               key={subject.id}
               subject={subject}
+              schoolYear={schoolYear}
               assessments={assessments.filter((item) => item.subject_id === subject.id)}
               onChanged={() => setVersion((value) => value + 1)}
               onError={setError}

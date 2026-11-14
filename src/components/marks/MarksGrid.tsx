@@ -11,6 +11,7 @@ import { cardClass, dangerButtonClass, gradeBadgeClass, primaryButtonClass } fro
 type Props = {
   students: Student[];
   subject: Subject;
+  schoolYear: number;
   assessments: Assessment[];
   savedMarks: Map<string, number>;
   sheet: SheetKind;
@@ -36,7 +37,7 @@ function parseMark(raw: string, max: number): { value: number | null; valid: boo
   return { value: valid ? value : null, valid };
 }
 
-export function MarksGrid({ students, subject, assessments, savedMarks, sheet, allowClearAllMarks = false, canEditMarks = true, onSaved }: Props) {
+export function MarksGrid({ students, subject, schoolYear, assessments, savedMarks, sheet, allowClearAllMarks = false, canEditMarks = true, onSaved }: Props) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
@@ -124,7 +125,7 @@ export function MarksGrid({ students, subject, assessments, savedMarks, sheet, a
   const requestClearAllMarks = async () => {
     setClearError(null);
     try {
-      setPendingClearCount(await countMarks({ subjectId: subject.id }));
+      setPendingClearCount(await countMarks({ subjectId: subject.id, schoolYear }));
     } catch (err) {
       setMessage({ tone: 'error', text: err instanceof Error ? err.message : 'Could not check the saved marks.' });
     }
@@ -138,7 +139,8 @@ export function MarksGrid({ students, subject, assessments, savedMarks, sheet, a
       const { data: assessmentRows, error: assessmentError } = await supabase
         .from('assessments')
         .select('id')
-        .eq('subject_id', subject.id);
+        .eq('subject_id', subject.id)
+        .eq('school_year', schoolYear);
       if (assessmentError) throw new Error(assessmentError.message);
       const assessmentIds = (assessmentRows ?? []).map((row) => row.id as string);
       if (assessmentIds.length > 0) {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { fetchClassSemester } from '@/lib/marksData';
 import type { GradeSemesterData } from '@/lib/types';
 
-export function useClassSemesterData(classCode: string, semester: number, enabled = true) {
+export function useClassSemesterData(classCode: string, schoolYear: number, semester: number, enabled = true) {
   const [state, setState] = useState<{ data: GradeSemesterData | null; loading: boolean; error: string | null }>({
     data: null,
     loading: enabled,
@@ -18,7 +18,7 @@ export function useClassSemesterData(classCode: string, semester: number, enable
 
     let cancelled = false;
     setState((prev) => ({ ...prev, loading: true, error: null }));
-    fetchClassSemester(classCode, semester)
+    fetchClassSemester(classCode, schoolYear, semester)
       .then((data) => {
         if (!cancelled) setState({ data, loading: false, error: null });
       })
@@ -34,7 +34,7 @@ export function useClassSemesterData(classCode: string, semester: number, enable
     return () => {
       cancelled = true;
     };
-  }, [classCode, semester, version, enabled]);
+  }, [classCode, schoolYear, semester, version, enabled]);
 
   return { ...state, reload: () => setVersion((value) => value + 1) };
 }

@@ -5,6 +5,9 @@ import type { Student } from '@/lib/types';
 import { classLabel, SEMESTERS, semesterLabel } from '@/lib/school';
 import { gradeBadgeClass, gradeBarClass, secondaryButtonClass } from '@/lib/styles';
 import { StudentPhoto } from '@/components/report/StudentPhoto';
+import { printReport } from '@/lib/printReport';
+
+const schoolLogoUrl = `${import.meta.env.BASE_URL}png.png`;
 
 export function StudentReportCard({
   student,
@@ -35,11 +38,14 @@ export function StudentReportCard({
 
   return (
     <article className="student-report-card overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_70px_-32px_rgba(15,23,42,0.45)]">
-      <header className="relative overflow-hidden bg-gradient-to-br from-blue-950 via-blue-800 to-sky-500 px-6 py-7 text-white sm:px-8 sm:py-9">
+      <header className="relative overflow-hidden bg-gradient-to-br from-blue-950 via-blue-800 to-sky-500 px-6 pb-7 pt-14 text-white sm:px-8 sm:pb-9 sm:pt-16">
+        <div className="report-school-logo-wrap absolute left-1/2 top-2 z-10 -translate-x-1/2">
+          <img src={schoolLogoUrl} alt="Faafu Atoll School logo" className="report-school-logo h-16 w-16 object-contain" />
+        </div>
         <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/15 blur-2xl" />
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-5">
-            <StudentPhoto fullName={student.full_name} photoUrl={student.photo_url} className="h-16 w-16 sm:h-20 sm:w-20" textClass="text-xl" />
+          <div className="flex min-w-0 items-center gap-3 sm:gap-5">
+            <StudentPhoto fullName={student.full_name} photoUrl={student.photo_url} className="h-16 w-16 shrink-0 sm:h-20 sm:w-20" textClass="text-xl" />
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-100">Grade analysis · {semesterLabel(semester)}</p>
               <p className="mt-4 text-sm font-medium text-blue-100">
@@ -53,7 +59,7 @@ export function StudentReportCard({
             <span className={`rounded-full px-3 py-1.5 text-sm font-bold ring-1 ring-inset ${gradeBadgeClass(result.finalGrade)}`}>
               {result.finalGrade} final
             </span>
-            <button type="button" onClick={() => window.print()} className={`${secondaryButtonClass} border-white/30 bg-white/10 text-white hover:bg-white/20 print:hidden`}>
+            <button type="button" onClick={() => printReport(`Faafu Atoll School - ${student.full_name} - ${schoolYear} - Semester ${semester} Report`)} className={`${secondaryButtonClass} border-white/30 bg-white/10 text-white hover:bg-white/20 print:hidden`}>
               <Printer className="h-4 w-4" aria-hidden />
               Print report
             </button>

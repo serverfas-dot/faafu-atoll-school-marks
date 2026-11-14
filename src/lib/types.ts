@@ -27,6 +27,7 @@ export type AssessmentPart = 'unit' | 'term';
 export type Assessment = {
   id: string;
   subject_id: string;
+  school_year: number;
   semester: number;
   name: string;
   max_mark: number;

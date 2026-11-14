@@ -4,21 +4,29 @@ import { EmptyState, Notice, PageHeader, Spinner } from '@/components/ui';
 import { ClassSemesterPicker } from '@/components/ClassSemesterPicker';
 import { ResultTable } from '@/components/results/ResultTable';
 import { computeGradeResults } from '@/lib/grading';
-import { classLabel, semesterLabel } from '@/lib/school';
+import { MARKS_SHEET_YEAR, classLabel, semesterLabel } from '@/lib/school';
+import { useSchoolYears } from '@/lib/useSchoolYears';
 import { useClassSemesterData } from '@/lib/useClassSemesterData';
 import { useClasses } from '@/lib/useClasses';
 import { cardClass, secondaryButtonClass } from '@/lib/styles';
+import { printReport } from '@/lib/printReport';
 
 export default function ResultsPage() {
   const [classCode, setClassCode] = useState('1');
   const [semester, setSemester] = useState(2);
+  const [schoolYear, setSchoolYear] = useState(MARKS_SHEET_YEAR);
   const { classes } = useClasses();
-  const { data, loading, error } = useClassSemesterData(classCode, semester);
+  const { years, defaultYear, error: yearsError } = useSchoolYears();
+  const { data, loading, error } = useClassSemesterData(classCode, schoolYear, semester);
   const classOption = classes.find((item) => item.value === classCode);
 
   useEffect(() => {
     if (classes.length > 0 && !classOption) setClassCode(classes[0].value);
   }, [classes, classOption]);
+
+  useEffect(() => {
+    if (years.length > 0 && !years.some((item) => item.year === schoolYear)) setSchoolYear(defaultYear);
+  }, [defaultYear, schoolYear, years]);
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -35,7 +43,7 @@ export default function ResultsPage() {
         title="Result sheet"
         description="The full class result for one semester: every subject, the average, the final grade and the rank."
         action={
-          <button type="button" onClick={() => window.print()} className={`${secondaryButtonClass} print:hidden`}>
+          <button type="button" onClick={() => printReport(`Faafu Atoll School - ${classLabel(classCode, classes)} - ${schoolYear} - ${semesterLabel(semester)} Result Sheet`)} className={`${secondaryButtonClass} print:hidden`}>
             <Printer className="h-4 w-4" aria-hidden />
             Print sheet
           </button>
@@ -50,6 +58,9 @@ export default function ResultsPage() {
             semester={semester}
             onClassChange={setClassCode}
             onSemesterChange={setSemester}
+            years={years}
+            schoolYear={schoolYear}
+            onSchoolYearChange={setSchoolYear}
           />
         </div>
         {data && (
@@ -59,6 +70,8 @@ export default function ResultsPage() {
           </p>
         )}
       </div>
+
+      {yearsError && <Notice tone="error">{yearsError}</Notice>}
 
       {loading && !data ? (
         <Spinner label="Loading result sheet..." />

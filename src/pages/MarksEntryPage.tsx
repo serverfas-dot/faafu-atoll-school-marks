@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { buildMarkIndex, sheetKindFor } from '@/lib/grading';
 import { MARKS_SHEET_YEAR, SEMESTERS, semesterLabel } from '@/lib/school';
+import { useSchoolYears } from '@/lib/useSchoolYears';
 import { formatWindowDate, isMarkEntryWindowOpen, listMarkEntryWindows, type MarkEntryWindow } from '@/lib/markEntryWindows';
 import { useClasses } from '@/lib/useClasses';
 import { cardClass } from '@/lib/styles';
@@ -13,6 +14,7 @@ import { useClassSemesterData } from '@/lib/useClassSemesterData';
 export default function MarksEntryPage() {
   const { profile, isAdmin } = useAuth();
   const { classes } = useClasses();
+  const { years, defaultYear, error: yearsError } = useSchoolYears();
   const [classCode, setClassCode] = useState('1');
   const [schoolYear, setSchoolYear] = useState(MARKS_SHEET_YEAR);
   const [semester, setSemester] = useState(2);
@@ -22,12 +24,16 @@ export default function MarksEntryPage() {
   const [entryWindow, setEntryWindow] = useState<MarkEntryWindow | null>(null);
   const [windowLoading, setWindowLoading] = useState(true);
   const [windowError, setWindowError] = useState<string | null>(null);
-  const { data, loading, error, reload } = useClassSemesterData(classCode, semester);
+  const { data, loading, error, reload } = useClassSemesterData(classCode, schoolYear, semester);
   const classOption = classes.find((item) => item.value === classCode);
 
   useEffect(() => {
     if (classes.length > 0 && !classOption) setClassCode(classes[0].value);
   }, [classes, classOption]);
+
+  useEffect(() => {
+    if (years.length > 0 && !years.some((item) => item.year === schoolYear)) setSchoolYear(defaultYear);
+  }, [defaultYear, schoolYear, years]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +117,7 @@ export default function MarksEntryPage() {
             ))}
           </SelectField>
           <SelectField label="Year" value={String(schoolYear)} onChange={(value) => setSchoolYear(Number(value))}>
-            <option value={String(MARKS_SHEET_YEAR)}>{MARKS_SHEET_YEAR}</option>
+            {years.length === 0 ? <option value={String(MARKS_SHEET_YEAR)}>{MARKS_SHEET_YEAR}</option> : years.map((item) => <option key={item.year} value={item.year}>{item.year}</option>)}
           </SelectField>
           <SelectField label="Semester" value={String(semester)} onChange={(value) => setSemester(Number(value))}>
             {SEMESTERS.map((item) => (
@@ -132,6 +138,7 @@ export default function MarksEntryPage() {
         </div>
       </div>
 
+      {yearsError && <Notice tone="error">{yearsError}</Notice>}
       {assignmentError && <Notice tone="error">{assignmentError}</Notice>}
       {windowError && <Notice tone="error">{windowError}</Notice>}
       {!isAdmin && !windowLoading && !windowError && (
@@ -161,9 +168,10 @@ export default function MarksEntryPage() {
         />
       ) : (
         <MarksGrid
-          key={`${classCode}-${semester}-${activeSubject.id}`}
+          key={`${classCode}-${schoolYear}-${semester}-${activeSubject.id}`}
           students={data.students}
           subject={activeSubject}
+          schoolYear={schoolYear}
           assessments={subjectAssessments}
           savedMarks={savedMarks}
           sheet={sheetKindFor(classCode, classOption?.sheetKind)}

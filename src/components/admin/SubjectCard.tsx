@@ -15,11 +15,13 @@ const iconButtonClass =
 
 export function SubjectCard({
   subject,
+  schoolYear,
   assessments,
   onChanged,
   onError,
 }: {
   subject: Subject;
+  schoolYear: number;
   assessments: Assessment[];
   onChanged: () => void;
   onError: (message: string | null) => void;
@@ -167,6 +169,7 @@ export function SubjectCard({
                 )}
                 <AssessmentForm
                   subjectId={subject.id}
+                  schoolYear={schoolYear}
                   semester={semester.value}
                   nextSortOrder={semesterItems.length + 1}
                   secondary={secondary}
@@ -206,6 +209,7 @@ export function SubjectCard({
 
 function AssessmentForm({
   subjectId,
+  schoolYear,
   semester,
   nextSortOrder,
   secondary,
@@ -213,6 +217,7 @@ function AssessmentForm({
   onError,
 }: {
   subjectId: string;
+  schoolYear: number;
   semester: number;
   nextSortOrder: number;
   secondary: boolean;
@@ -238,6 +243,7 @@ function AssessmentForm({
     setFormError(null);
     const { error } = await supabase.from('assessments').insert({
       subject_id: subjectId,
+      school_year: schoolYear,
       semester,
       name: name.trim(),
       max_mark: max,

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { CalendarClock, Clock3, Save, Trash2 } from 'lucide-react';
-import { Notice, Spinner } from '@/components/ui';
+import { Notice, SelectField, Spinner } from '@/components/ui';
 import { SEMESTERS, MARKS_SHEET_YEAR } from '@/lib/school';
+import { useSchoolYears } from '@/lib/useSchoolYears';
 import {
   formatWindowDate,
   isMarkEntryWindowOpen,
@@ -41,6 +42,8 @@ function applyRows(rows: MarkEntryWindow[]): { drafts: Drafts; windows: Windows 
 }
 
 export function MarkEntryWindowManager() {
+  const { years, defaultYear } = useSchoolYears();
+  const [year, setYear] = useState(MARKS_SHEET_YEAR);
   const [drafts, setDrafts] = useState<Drafts>(EMPTY_DRAFTS);
   const [windows, setWindows] = useState<Windows>(EMPTY_WINDOWS);
   const [loading, setLoading] = useState(true);
@@ -48,8 +51,12 @@ export function MarkEntryWindowManager() {
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
 
   useEffect(() => {
+    if (years.length > 0 && !years.some((item) => item.year === year)) setYear(defaultYear);
+  }, [defaultYear, year, years]);
+
+  useEffect(() => {
     let cancelled = false;
-    listMarkEntryWindows()
+    listMarkEntryWindows(year)
       .then((rows) => {
         if (cancelled) return;
         const next = applyRows(rows);
@@ -65,15 +72,15 @@ export function MarkEntryWindowManager() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [year]);
 
   const handleSave = async (semester: SemesterValue) => {
     const draft = drafts[semester];
     setBusySemester(semester);
     setMessage(null);
     try {
-      await saveMarkEntryWindow(semester, draft.opensAt, draft.closesAt);
-      const next = applyRows(await listMarkEntryWindows());
+      await saveMarkEntryWindow(semester, draft.opensAt, draft.closesAt, year);
+      const next = applyRows(await listMarkEntryWindows(year));
       setDrafts(next.drafts);
       setWindows(next.windows);
       setMessage({ tone: 'success', text: `${semester === 1 ? 'Semester 1' : 'Semester 2'} mark entry window saved.` });
@@ -88,7 +95,7 @@ export function MarkEntryWindowManager() {
     setBusySemester(semester);
     setMessage(null);
     try {
-      await removeMarkEntryWindow(semester);
+      await removeMarkEntryWindow(semester, year);
       setWindows((current) => ({ ...current, [semester]: null }));
       setDrafts((current) => ({ ...current, [semester]: { ...EMPTY_DRAFTS[semester] } }));
       setMessage({ tone: 'success', text: `${semester === 1 ? 'Semester 1' : 'Semester 2'} mark entry is now closed.` });
@@ -113,7 +120,9 @@ export function MarkEntryWindowManager() {
             </p>
           </div>
         </div>
-        <p className="text-sm font-medium text-blue-800">School year: {MARKS_SHEET_YEAR}</p>
+        <SelectField label="School year" value={String(year)} onChange={(value) => setYear(Number(value))}>
+          {years.length === 0 ? <option value={String(MARKS_SHEET_YEAR)}>{MARKS_SHEET_YEAR}</option> : years.map((item) => <option key={item.year} value={item.year}>{item.year}</option>)}
+        </SelectField>
       </div>
 
       {message && <Notice tone={message.tone}>{message.text}</Notice>}

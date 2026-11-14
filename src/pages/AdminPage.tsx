@@ -6,6 +6,7 @@ import { TeachersManager } from '@/components/admin/TeachersManager';
 import { ClassesManager } from '@/components/admin/ClassesManager';
 import MarksEntryPage from '@/pages/MarksEntryPage';
 import { MarkEntryWindowManager } from '@/components/admin/MarkEntryWindowManager';
+import { SchoolYearsManager } from '@/components/admin/SchoolYearsManager';
 
 const TABS = [
   { id: 'students', label: 'Students', render: () => <StudentsManager /> },
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'classes', label: 'Classes', render: () => <ClassesManager /> },
   { id: 'marks', label: 'Marks entry', render: () => <MarksEntryPage /> },
   { id: 'entry-window', label: 'Mark entry window', render: () => <MarkEntryWindowManager /> },
+  { id: 'school-years', label: 'School years', render: () => <SchoolYearsManager /> },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];

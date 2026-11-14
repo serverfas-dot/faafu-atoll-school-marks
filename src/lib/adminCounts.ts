@@ -1,11 +1,21 @@
 import { supabase } from '@/lib/supabase';
 
-export async function countMarks(filter: { studentId?: string; assessmentId?: string; subjectId?: string }): Promise<number> {
+export async function countMarks(filter: { studentId?: string; assessmentId?: string; subjectId?: string; schoolYear?: number }): Promise<number> {
   let assessmentIds: string[] | null = null;
   if (filter.subjectId) {
     const { data, error } = await supabase.from('assessments').select('id').eq('subject_id', filter.subjectId);
     if (error) throw new Error(error.message);
-    assessmentIds = (data ?? []).map((row) => row.id as string);
+    let subjectAssessments = (data ?? []).map((row) => row.id as string);
+    if (filter.schoolYear !== undefined && subjectAssessments.length > 0) {
+      const { data: yearRows, error: yearError } = await supabase
+        .from('assessments')
+        .select('id')
+        .in('id', subjectAssessments)
+        .eq('school_year', filter.schoolYear);
+      if (yearError) throw new Error(yearError.message);
+      subjectAssessments = (yearRows ?? []).map((row) => row.id as string);
+    }
+    assessmentIds = subjectAssessments;
     if (assessmentIds.length === 0) return 0;
   }
 

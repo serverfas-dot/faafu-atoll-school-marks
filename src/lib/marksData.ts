@@ -29,7 +29,7 @@ async function fetchMarks(assessmentIds: string[]): Promise<MarkRow[]> {
   }
 }
 
-export async function fetchClassSemester(classCode: string, semester: number): Promise<GradeSemesterData> {
+export async function fetchClassSemester(classCode: string, schoolYear: number, semester: number): Promise<GradeSemesterData> {
   const [studentsRes, subjectsRes] = await Promise.all([
     supabase.from('students').select('id, full_name, roll_no, class_name, photo_url').eq('class_name', classCode),
     supabase.from('subjects').select('id, name, class_name, sort_order').eq('class_name', classCode).order('sort_order'),
@@ -44,7 +44,8 @@ export async function fetchClassSemester(classCode: string, semester: number): P
   if (subjects.length > 0) {
     const { data, error } = await supabase
       .from('assessments')
-      .select('id, subject_id, semester, name, max_mark, weight, part, sort_order')
+      .select('id, subject_id, school_year, semester, name, max_mark, weight, part, sort_order')
+      .eq('school_year', schoolYear)
       .eq('semester', semester)
       .in('subject_id', subjects.map((subject) => subject.id))
       .order('sort_order');

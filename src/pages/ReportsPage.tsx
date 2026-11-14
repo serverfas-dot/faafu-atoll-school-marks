@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
   BarChart3,
   BookOpenCheck,
@@ -33,14 +34,14 @@ import {
 import { classLabel, MARKS_SHEET_YEAR } from '@/lib/school';
 import { useClassSemesterData } from '@/lib/useClassSemesterData';
 import { useClasses } from '@/lib/useClasses';
+import { useSchoolYears } from '@/lib/useSchoolYears';
 import { cardClass, gradeBadgeClass, gradeBarClass, secondaryButtonClass } from '@/lib/styles';
 import { StudentPhoto } from '@/components/report/StudentPhoto';
+import { printReport } from '@/lib/printReport';
 
 type ReportView = 'analysis' | 'subject-analysis' | 'assessment' | 'semester' | 'class-pass' | 'aggregate';
 
 const SECONDARY_AGGREGATE_CODES = new Set(['9BS', '9SC', '10BS', '10SC']);
-const REPORT_YEARS = [MARKS_SHEET_YEAR] as const;
-
 const REPORT_TABS: { id: ReportView; label: string; icon: typeof BarChart3 }[] = [
   { id: 'analysis', label: 'Student analysis', icon: BarChart3 },
   { id: 'subject-analysis', label: 'Grade subject analysis', icon: BookOpenCheck },
@@ -59,8 +60,9 @@ export default function ReportsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const { classes } = useClasses();
-  const firstSemester = useClassSemesterData(classCode, 1, semester === 1 || view === 'aggregate');
-  const secondSemester = useClassSemesterData(classCode, 2, semester === 2 || view === 'aggregate');
+  const { years, defaultYear, error: yearsError } = useSchoolYears();
+  const firstSemester = useClassSemesterData(classCode, reportYear, 1, semester === 1 || view === 'aggregate');
+  const secondSemester = useClassSemesterData(classCode, reportYear, 2, semester === 2 || view === 'aggregate');
   const selectedState = semester === 1 ? firstSemester : secondSemester;
   const classOption = classes.find((item) => item.value === classCode);
   const sheet = classOption?.sheetKind ?? 'primary';
@@ -71,7 +73,12 @@ export default function ReportsPage() {
   }, [classes, classOption]);
 
   useEffect(() => {
-    const students = selectedState.data?.students ?? [];
+    if (years.length > 0 && !years.some((item) => item.year === reportYear)) setReportYear(defaultYear);
+  }, [defaultYear, reportYear, years]);
+
+  useEffect(() => {
+    if (!selectedState.data) return;
+    const students = selectedState.data.students;
     if (!students.some((student) => student.id === selectedId)) setSelectedId(students[0]?.id ?? null);
   }, [selectedId, selectedState.data]);
 
@@ -148,13 +155,42 @@ export default function ReportsPage() {
         description="Explore grade analysis, assessment outcomes, semester results, pass rates and two-semester aggregates from one clear report workspace."
         action={
           view === 'analysis' && selectedStudent && selectedResult ? (
-            <button type="button" onClick={() => window.print()} className={`${secondaryButtonClass} print:hidden`}>
+            <button type="button" onClick={() => printReport(`Faafu Atoll School - ${selectedStudent.full_name} - ${reportYear} - Semester ${semester} Report`)} className={`${secondaryButtonClass} print:hidden`}>
               <Printer className="h-4 w-4" aria-hidden />
               Print report
             </button>
           ) : null
         }
       />
+
+      {view === 'analysis' && selectedStudent && selectedResult && createPortal(
+        <div className="print-report-root">
+          <div className="student-report-printable">
+            <PrintClassSummary
+              className={classLabel(classCode, classes)}
+              semester={semester}
+              schoolYear={reportYear}
+              classAverage={classAverage}
+              classSummary={classSummary}
+              assessmentSummary={assessmentSummary}
+              topStudent={topStudent}
+              totalStudents={currentResults.length}
+            />
+            <StudentReportCard
+              key={`${selectedStudent.id}-${reportYear}-${semester}`}
+              student={selectedStudent}
+              result={selectedResult}
+              rank={selectedResult && currentComputed ? currentComputed.ranks.get(selectedResult.studentId) ?? null : null}
+              classSize={currentResults.length}
+              semester={semester}
+              schoolYear={reportYear}
+              className={classLabel(classCode, classes)}
+              sheet={sheet}
+            />
+          </div>
+        </div>,
+        document.body,
+      )}
 
       <div className="space-y-6">
         <section className={`${cardClass} overflow-hidden bg-white`}>
@@ -188,7 +224,7 @@ export default function ReportsPage() {
                 }}
               />
               <SelectField label="School year" value={String(reportYear)} onChange={(value) => setReportYear(Number(value))}>
-                {REPORT_YEARS.map((year) => <option key={year} value={year}>{year}</option>)}
+                {years.length === 0 ? <option value={String(MARKS_SHEET_YEAR)}>{MARKS_SHEET_YEAR}</option> : years.map((item) => <option key={item.year} value={item.year}>{item.year}</option>)}
               </SelectField>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-600 lg:justify-end">
@@ -222,8 +258,8 @@ export default function ReportsPage() {
           })}
         </nav>
 
-        {(selectedState.error || firstSemester.error || secondSemester.error) && (
-          <Notice tone="error">{selectedState.error ?? firstSemester.error ?? secondSemester.error}</Notice>
+        {(yearsError || selectedState.error || firstSemester.error || secondSemester.error) && (
+          <Notice tone="error">{yearsError ?? selectedState.error ?? firstSemester.error ?? secondSemester.error}</Notice>
         )}
 
         {selectedState.loading && !selectedState.data ? (
@@ -387,7 +423,7 @@ function AnalysisView({
           {!selectedStudent || !selectedResult ? (
             <EmptyState title="Select a student" description="Choose a student from the list to open their grade analysis." />
           ) : (
-            <div className="student-report-printable">
+            <div className="student-report-screen">
               <PrintClassSummary
                 className={className}
                 semester={semester}
@@ -395,10 +431,11 @@ function AnalysisView({
                 classAverage={classAverage}
                 classSummary={classSummary}
                 assessmentSummary={assessmentSummary}
+                topStudent={topStudent}
                 totalStudents={classSize}
               />
               <StudentReportCard
-                key={`${selectedStudent.id}-${semester}`}
+                key={`${selectedStudent.id}-${schoolYear}-${semester}`}
                 student={selectedStudent}
                 result={selectedResult}
                 rank={rank}
@@ -416,7 +453,7 @@ function AnalysisView({
   );
 }
 
-function PrintClassSummary({ className, semester, schoolYear, classAverage, classSummary, assessmentSummary, totalStudents }: { className: string; semester: number; schoolYear: number; classAverage: number | null; classSummary: OutcomeSummary; assessmentSummary: OutcomeSummary; totalStudents: number }) {
+function PrintClassSummary({ className, semester, schoolYear, classAverage, classSummary, assessmentSummary, topStudent, totalStudents }: { className: string; semester: number; schoolYear: number; classAverage: number | null; classSummary: OutcomeSummary; assessmentSummary: OutcomeSummary; topStudent: StudentResult | undefined; totalStudents: number }) {
   return (
     <section className="student-print-summary">
       <div className="student-print-summary-heading"><p>Class summary</p><strong>{className} · {schoolYear} · {semester === 1 ? 'First semester' : 'Second semester'}</strong></div>
@@ -424,6 +461,7 @@ function PrintClassSummary({ className, semester, schoolYear, classAverage, clas
         <div><span>Class average</span><strong>{formatPercent(classAverage)}</strong></div>
         <div><span>Class pass rate</span><strong>{formatPercent(classSummary.passRate)}</strong></div>
         <div><span>Papers passed</span><strong>{assessmentSummary.pass} / {assessmentSummary.total}</strong></div>
+        <div><span>Top student</span><strong>{topStudent ? formatPercent(topStudent.average) : '-'}</strong></div>
         <div><span>Total students</span><strong>{totalStudents}</strong></div>
       </div>
     </section>
