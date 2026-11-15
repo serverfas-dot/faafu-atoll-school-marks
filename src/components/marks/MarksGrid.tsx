@@ -4,7 +4,7 @@ import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { Notice } from '@/components/ui';
 import { countMarks } from '@/lib/adminCounts';
 import { supabase } from '@/lib/supabase';
-import { computeStudentResult, formatPercent, markKey, type AssessmentAbsence, type MarkIndex, type SheetKind } from '@/lib/grading';
+import { computeStudentResult, markKey, type AssessmentAbsence, type MarkIndex, type SheetKind } from '@/lib/grading';
 import type { Assessment, Student, Subject, SubjectResultVisibility } from '@/lib/types';
 import { cardClass, dangerButtonClass, gradeBadgeClass, primaryButtonClass } from '@/lib/styles';
 
@@ -292,19 +292,19 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
                 ))}
                 <th colSpan={3} className={`${sectionBorder} ${headerCellClass}`}>
                   <span className="block normal-case tracking-normal">Subject total</span>
-                  <span className="block text-[11px] font-medium normal-case text-slate-500">Final</span>
+                  <span className="block text-[11px] font-medium normal-case text-slate-500">Final out of 50</span>
                 </th>
               </tr>
               <tr className="border-b border-slate-200">
                 {assessments.map((item) => (
                   <Fragment key={item.id}>
                     <th className={`${sectionBorder} px-3 py-2 text-center`}>Mark</th>
-                    <th className="px-3 py-2 text-center">%</th>
+                    <th className="px-3 py-2 text-center">100%</th>
                     <th className="px-3 py-2 text-center">Grade</th>
                   </Fragment>
                 ))}
-                <th className={`${sectionBorder} px-3 py-2 text-center`}>Marks</th>
-                <th className="px-3 py-2 text-center">%</th>
+                <th className={`${sectionBorder} px-3 py-2 text-center`}>Total</th>
+                <th className="px-3 py-2 text-center">50%</th>
                 <th className="px-3 py-2 text-center">Grade</th>
               </tr>
             </thead>
@@ -402,7 +402,7 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
                     return (
                       <Fragment key={item.id}>
                         {markInput(student, item)}
-                        <td className={valueCellClass}>{formatPercent(row?.percent ?? null)}</td>
+                        <td className={valueCellClass}>{formatAmount(row?.percent ?? null)}</td>
                         <td className="px-3 py-2 text-center">
                           <GradeChip grade={row?.grade ?? '-'} />
                         </td>
@@ -413,7 +413,7 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
                     {subjectResult?.obtained ?? 0} / {subjectResult?.maxTotal ?? 0}
                   </td>
                   <td className="px-3 py-2 text-center text-sm font-semibold tabular-nums text-slate-900">
-                    {formatPercent(subjectResult?.percent ?? null)}
+                    {formatAmount(subjectResult?.percent ?? null)}
                   </td>
                   <td className="px-3 py-2 text-center">
                     <GradeChip grade={subjectResult?.grade ?? '-'} />
@@ -430,6 +430,10 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
 
 function formatSheetValue(value: number | null): string {
   return value === null ? '-' : String(Math.round(value));
+}
+
+function formatAmount(value: number | null): string {
+  return value === null ? '-' : String(Number(value.toFixed(2)));
 }
 
 function GradeChip({ grade }: { grade: string }) {
