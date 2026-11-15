@@ -470,7 +470,7 @@ function MarkInput({
       <div className="flex flex-col items-center gap-1">
         <input
           type="text"
-          disabled={disabled || absence !== null}
+          disabled={disabled}
           inputMode="decimal"
           value={absence ? absence : value}
           aria-label={ariaLabel}
