@@ -481,7 +481,7 @@ function MarkInput({
         />
         {!disabled && (
           <div className="flex gap-0.5">
-            {(['MC', 'OL'] as AssessmentAbsence[]).map((option) => (
+            {(['MC', 'OL', 'AB'] as AssessmentAbsence[]).map((option) => (
               <button
                 key={option}
                 type="button"

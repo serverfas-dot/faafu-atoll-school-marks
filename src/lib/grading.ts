@@ -3,7 +3,7 @@ import type { SheetKind } from '@/lib/school';
 
 export type { SheetKind } from '@/lib/school';
 
-export type AssessmentAbsence = 'MC' | 'OL';
+export type AssessmentAbsence = 'MC' | 'OL' | 'AB';
 
 export type MarkValue = { mark: number | null; absence: AssessmentAbsence | null };
 
@@ -76,7 +76,7 @@ export function buildMarkIndex(rows: { student_id: string; assessment_id: string
   return new Map(
     rows.map((row) => [
       markKey(row.student_id, row.assessment_id),
-      { mark: row.mark, absence: row.absence_type === 'MC' || row.absence_type === 'OL' ? row.absence_type : null } as MarkValue,
+      { mark: row.mark, absence: row.absence_type === 'MC' || row.absence_type === 'OL' || row.absence_type === 'AB' ? row.absence_type : null } as MarkValue,
     ]),
   );
 }
