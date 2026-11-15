@@ -58,7 +58,7 @@ export function SiteHeader({ current }: { current: Route }) {
               <span className="hidden text-sm text-slate-600 sm:inline">
                 {profile?.full_name} <span className="text-slate-400">({profile?.role})</span>
               </span>
-              <button type="button" onClick={() => void signOut()} className={secondaryButtonClass}>
+              <button type="button" onClick={() => void signOut().then(() => navigate('signin'))} className={secondaryButtonClass}>
                 <LogOut className="h-4 w-4" aria-hidden />
                 Sign out
               </button>

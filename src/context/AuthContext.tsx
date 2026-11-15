@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, SUPABASE_URL } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
 
 type AuthContextValue = {
@@ -72,7 +72,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : error.message;
       },
       signOut: async () => {
-        await supabase.auth.signOut();
+        try {
+          await supabase.auth.signOut();
+        } finally {
+          // Fallback: remove the locally saved session even if the server call failed,
+          // so the app never stays signed in on the hosted site.
+          try {
+            const match = SUPABASE_URL.match(/^https:\/\/([^.]+)\.supabase\.co/);
+            if (match) window.localStorage.removeItem(`sb-${match[1]}-auth-token`);
+          } catch {
+            // storage unavailable — the signOut call above already cleared the session
+          }
+        }
       },
     }),
     [session, profile, loading],
