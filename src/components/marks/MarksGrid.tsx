@@ -185,7 +185,6 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
   const unitItems = assessments.filter((item) => item.part === 'unit');
   const termItems = assessments.filter((item) => item.part === 'term');
   const unitMax = unitItems.reduce((sum, item) => sum + item.max_mark, 0);
-  const termMax = termItems.reduce((sum, item) => sum + item.max_mark, 0);
 
   return (
     <div className="space-y-4">
@@ -292,8 +291,8 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
                   </th>
                 ))}
                 <th className={headerCellClass}>
-                  <span className="block normal-case tracking-normal">70% Term Test</span>
-                  <span className="block text-[11px] font-medium normal-case text-slate-500">Out of {termMax}</span>
+                  <span className="block normal-case tracking-normal">70% of Term Test</span>
+                  <span className="block text-[11px] font-medium normal-case text-slate-500">Out of 70</span>
                 </th>
                 <th className={`${sectionBorder} ${headerCellClass}`}>
                   <span className="block normal-case tracking-normal">Total (100%)</span>
@@ -312,7 +311,7 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
               if (sheet === 'secondary') {
                 return (
                   <tr key={student.id} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/60">
-                    <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-sm text-slate-600">{index + 1}</td>
+                    <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-sm text-slate-600">{student.roll_no || '-'}</td>
                     <td className="sticky left-16 z-10 bg-inherit px-3 py-2 text-sm font-medium text-slate-900">{student.full_name}</td>
                     {unitItems.map((item) => (
                       <Fragment key={item.id}>{markInput(student, item)}</Fragment>
@@ -337,7 +336,7 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
 
               return (
                 <tr key={student.id} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/60">
-                  <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-sm text-slate-600">{index + 1}</td>
+                  <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-sm text-slate-600">{student.roll_no || '-'}</td>
                   <td className="sticky left-16 z-10 bg-inherit px-3 py-2 text-sm font-medium text-slate-900">{student.full_name}</td>
                   {assessments.map((item) => {
                     const row = assessmentResult(item.id);

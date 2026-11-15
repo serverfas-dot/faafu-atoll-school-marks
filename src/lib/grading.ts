@@ -91,9 +91,10 @@ export function percentOf(mark: number | null, max: number): number | null {
 function partPoints(rows: AssessmentResult[], sheet: SheetKind, part: AssessmentPart): number {
   if (rows.length === 0) return 0;
   if (sheet === 'secondary') {
-    const obtained = rows.reduce((sum, r) => sum + (r.mark ?? 0), 0);
-    const max = rows.reduce((sum, r) => sum + r.max, 0);
-    return (obtained / max) * SECONDARY_PART_POINTS[part];
+    const configuredPoints = rows.reduce((sum, row) => sum + row.weight, 0);
+    if (configuredPoints <= 0) return 0;
+    const earnedPoints = rows.reduce((sum, row) => sum + ((row.mark ?? 0) / row.max) * row.weight, 0);
+    return round2((earnedPoints / configuredPoints) * SECONDARY_PART_POINTS[part]);
   }
   return rows.reduce((sum, r) => sum + ((r.mark ?? 0) / r.max) * r.weight, 0);
 }

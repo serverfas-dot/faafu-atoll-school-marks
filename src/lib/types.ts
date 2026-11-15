@@ -34,6 +34,7 @@ export type Assessment = {
   weight: number;
   part: AssessmentPart;
   sort_order: number;
+  is_active: boolean;
 };
 
 export type MarkRow = {

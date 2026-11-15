@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Pencil, Trash2, X } from 'lucide-react';
+import { Check, Eye, EyeOff, Pencil, Trash2, X } from 'lucide-react';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { Notice, SelectField, TextField } from '@/components/ui';
 import { countMarks } from '@/lib/adminCounts';
@@ -25,11 +25,27 @@ export function AssessmentItem({
   const [weight, setWeight] = useState(String(item.weight));
   const [sortOrder, setSortOrder] = useState(String(item.sort_order));
   const [part, setPart] = useState<AssessmentPart>(item.part);
+  const [isActive, setIsActive] = useState(item.is_active);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [pendingMarks, setPendingMarks] = useState<number | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [toggleBusy, setToggleBusy] = useState(false);
+
+  const toggleActive = async () => {
+    setToggleBusy(true);
+    const { error: toggleError } = await supabase
+      .from('assessments')
+      .update({ is_active: !item.is_active })
+      .eq('id', item.id);
+    setToggleBusy(false);
+    if (toggleError) {
+      onError('Could not change this assessment. Please try again.');
+      return;
+    }
+    onChanged();
+  };
 
   const startEditing = () => {
     setName(item.name);
@@ -37,6 +53,7 @@ export function AssessmentItem({
     setWeight(String(item.weight));
     setSortOrder(String(item.sort_order));
     setPart(item.part);
+    setIsActive(item.is_active);
     setEditError(null);
     setEditing(true);
   };
@@ -54,7 +71,7 @@ export function AssessmentItem({
     setEditError(null);
     const { error } = await supabase
       .from('assessments')
-      .update({ name: trimmed, max_mark: max, weight: points, sort_order: order, part: secondary ? part : item.part })
+      .update({ name: trimmed, max_mark: max, weight: points, sort_order: order, part: secondary ? part : item.part, is_active: isActive })
       .eq('id', item.id);
     setSaving(false);
     if (error) {
@@ -97,10 +114,11 @@ export function AssessmentItem({
     <>
       {editing ? (
         <li className="space-y-3 bg-blue-50/40 px-4 py-3">
-          <div className="grid gap-3 sm:grid-cols-[1fr_110px_160px_120px_100px]">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <TextField label="Name" value={name} onChange={setName} />
             <TextField label="Out of" type="number" value={maxMark} onChange={setMaxMark} />
-            {secondary ? (
+            <TextField label={secondary ? 'Percentage points' : 'Weight (points of 100)'} type="number" value={weight} onChange={setWeight} />
+            {secondary && (
               <SelectField label="Part" value={part} onChange={(value) => setPart(value as AssessmentPart)}>
                 {ASSESSMENT_PART_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -108,11 +126,13 @@ export function AssessmentItem({
                   </option>
                 ))}
               </SelectField>
-            ) : (
-              <TextField label="Weight" type="number" value={weight} onChange={setWeight} />
             )}
             <TextField label="Position" type="number" value={sortOrder} onChange={setSortOrder} />
           </div>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600" />
+            Include in marks, totals, and reports
+          </label>
           {editError && <Notice tone="error">{editError}</Notice>}
           <div className="flex gap-2">
             <button type="button" onClick={() => void handleSave()} disabled={saving} className={primaryButtonClass}>
@@ -128,16 +148,29 @@ export function AssessmentItem({
       ) : (
         <li className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
           <span className="min-w-0">
-            <span className="block truncate font-medium text-slate-800">{item.name}</span>
+            <span className="flex items-center gap-2 truncate font-medium text-slate-800">
+              <span className="truncate">{item.name}</span>
+              {!item.is_active && <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Hidden</span>}
+            </span>
             <span className="tabular-nums text-slate-500">
               Out of {item.max_mark}
               {secondary
-                ? ` - ${item.part === 'term' ? 'term test' : 'unit test'}`
+                ? ` - ${item.part === 'term' ? 'term test' : 'unit test'} - ${item.weight} points`
                 : ` - worth ${item.weight} points`}
               {` - position ${item.sort_order}`}
             </span>
           </span>
           <span className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => void toggleActive()}
+              disabled={toggleBusy}
+              aria-label={item.is_active ? `Hide ${item.name}` : `Show ${item.name}`}
+              className={secondaryButtonClass}
+            >
+              {item.is_active ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              {item.is_active ? 'Hide' : 'Show'}
+            </button>
             <button type="button" onClick={startEditing} className={secondaryButtonClass}>
               <Pencil className="h-4 w-4" aria-hidden />
               Edit

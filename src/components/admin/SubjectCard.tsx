@@ -226,7 +226,7 @@ function AssessmentForm({
 }) {
   const [name, setName] = useState('');
   const [maxMark, setMaxMark] = useState('25');
-  const [weight, setWeight] = useState('50');
+  const [weight, setWeight] = useState(secondary ? '30' : '50');
   const [part, setPart] = useState<AssessmentPart>('unit');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -249,6 +249,7 @@ function AssessmentForm({
       max_mark: max,
       weight: points,
       sort_order: nextSortOrder,
+      is_active: true,
       part: secondary ? part : 'unit',
     });
     setSaving(false);
@@ -263,19 +264,26 @@ function AssessmentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 rounded-lg bg-slate-50 p-4">
-      <div className="grid gap-3 sm:grid-cols-[1fr_120px_140px_auto] sm:items-end">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
         <TextField label="Assessment name" value={name} onChange={setName} />
         <TextField label="Out of" type="number" value={maxMark} onChange={setMaxMark} />
-        {secondary ? (
-          <SelectField label="Part" value={part} onChange={(value) => setPart(value as AssessmentPart)}>
+        <TextField label={secondary ? 'Percentage points' : 'Weight (points of 100)'} type="number" value={weight} onChange={setWeight} />
+        {secondary && (
+          <SelectField
+            label="Part"
+            value={part}
+            onChange={(value) => {
+              const nextPart = value as AssessmentPart;
+              setPart(nextPart);
+              setWeight(nextPart === 'unit' ? '30' : '70');
+            }}
+          >
             {ASSESSMENT_PART_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </SelectField>
-        ) : (
-          <TextField label="Weight (points of 100)" type="number" value={weight} onChange={setWeight} />
         )}
         <button type="submit" disabled={saving} className={primaryButtonClass}>
           Add

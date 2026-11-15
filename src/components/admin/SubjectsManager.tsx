@@ -47,7 +47,7 @@ export function SubjectsManager() {
       if (list.length > 0) {
         const { data: assessmentRows, error: assessmentError } = await supabase
           .from('assessments')
-          .select('id, subject_id, school_year, semester, name, max_mark, weight, part, sort_order')
+          .select('id, subject_id, school_year, semester, name, max_mark, weight, part, sort_order, is_active')
           .eq('school_year', schoolYear)
           .in('subject_id', list.map((subject) => subject.id))
           .order('sort_order');

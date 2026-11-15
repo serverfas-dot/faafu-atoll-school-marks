@@ -102,7 +102,7 @@ export function StudentReportCard({
                 </div>
                 {sheet === 'secondary' && subject.term.max > 0 && (
                   <p className="mt-2 text-xs font-medium text-slate-600">
-                    Unit tests {subject.unit.points.toFixed(2)} / {SECONDARY_PART_POINTS.unit} · Term test {subject.term.points.toFixed(2)} / {SECONDARY_PART_POINTS.term}
+                    30% of Unit Test {subject.unit.points.toFixed(2)} / {SECONDARY_PART_POINTS.unit} · 70% of Term Test {subject.term.points.toFixed(2)} / {SECONDARY_PART_POINTS.term}
                   </p>
                 )}
                 {subject.assessments.length > 0 && (

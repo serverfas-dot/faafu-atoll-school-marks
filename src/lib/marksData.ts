@@ -44,8 +44,9 @@ export async function fetchClassSemester(classCode: string, schoolYear: number, 
   if (subjects.length > 0) {
     const { data, error } = await supabase
       .from('assessments')
-      .select('id, subject_id, school_year, semester, name, max_mark, weight, part, sort_order')
+      .select('id, subject_id, school_year, semester, name, max_mark, weight, part, sort_order, is_active')
       .eq('school_year', schoolYear)
+      .eq('is_active', true)
       .eq('semester', semester)
       .in('subject_id', subjects.map((subject) => subject.id))
       .order('sort_order');
