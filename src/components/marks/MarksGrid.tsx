@@ -4,8 +4,8 @@ import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { Notice } from '@/components/ui';
 import { countMarks } from '@/lib/adminCounts';
 import { supabase } from '@/lib/supabase';
-import { computeStudentResult, formatPercent, markKey, type SheetKind } from '@/lib/grading';
-import type { Assessment, Student, Subject } from '@/lib/types';
+import { computeStudentResult, formatPercent, markKey, type AssessmentAbsence, type MarkIndex, type SheetKind } from '@/lib/grading';
+import type { Assessment, Student, Subject, SubjectResultVisibility } from '@/lib/types';
 import { cardClass, dangerButtonClass, gradeBadgeClass, primaryButtonClass } from '@/lib/styles';
 
 type Props = {
@@ -13,14 +13,15 @@ type Props = {
   subject: Subject;
   schoolYear: number;
   assessments: Assessment[];
-  savedMarks: Map<string, number>;
+  savedMarks: MarkIndex;
   sheet: SheetKind;
+  visibility?: SubjectResultVisibility;
   allowClearAllMarks?: boolean;
   canEditMarks?: boolean;
   onSaved: () => void;
 };
 
-type Change = { studentId: string; assessmentId: string; value: number | null };
+type Change = { studentId: string; assessmentId: string; value: number | null; absence: AssessmentAbsence | null };
 
 const cellInputBase =
   'w-20 rounded-md border bg-white px-2 py-1.5 text-center text-sm tabular-nums shadow-sm transition focus:outline-none focus:ring-2';
@@ -37,8 +38,9 @@ function parseMark(raw: string, max: number): { value: number | null; valid: boo
   return { value: valid ? value : null, valid };
 }
 
-export function MarksGrid({ students, subject, schoolYear, assessments, savedMarks, sheet, allowClearAllMarks = false, canEditMarks = true, onSaved }: Props) {
+export function MarksGrid({ students, subject, schoolYear, assessments, savedMarks, sheet, visibility, allowClearAllMarks = false, canEditMarks = true, onSaved }: Props) {
   const [draft, setDraft] = useState<Record<string, string>>({});
+  const [absenceDraft, setAbsenceDraft] = useState<Record<string, AssessmentAbsence | null>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [pendingClearCount, setPendingClearCount] = useState<number | null>(null);
@@ -59,31 +61,41 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
 
   const displayMarks = useMemo(() => {
     const merged = new Map(savedMarks);
+    Object.entries(absenceDraft).forEach(([key, absence]) => {
+      const existing = merged.get(key);
+      if (absence) merged.set(key, { mark: existing?.mark ?? 0, absence });
+      else merged.delete(key);
+    });
     Object.entries(draft).forEach(([key, raw]) => {
       const { value, valid } = parseMark(raw, maxByAssessment.get(key.split('|')[1]) ?? 0);
       if (!valid) return;
-      if (value === null) merged.delete(key);
-      else merged.set(key, value);
+      const existing = merged.get(key);
+      if (value === null && !existing?.absence) merged.delete(key);
+      else merged.set(key, { mark: value ?? 0, absence: existing?.absence ?? null });
     });
     return merged;
-  }, [draft, savedMarks, maxByAssessment]);
+  }, [draft, absenceDraft, savedMarks, maxByAssessment]);
 
   const results = useMemo(
-    () => students.map((student) => computeStudentResult(student.id, [subject], assessments, displayMarks, sheet)),
-    [students, subject, assessments, displayMarks, sheet],
+    () => students.map((student) => computeStudentResult(student.id, [subject], assessments, displayMarks, sheet, visibility ? [visibility] : undefined)),
+    [students, subject, assessments, displayMarks, sheet, visibility],
   );
 
-  const changes = useMemo<Change[]>(
-    () =>
-      Object.entries(draft).flatMap(([key, raw]) => {
-        const [studentId, assessmentId] = key.split('|');
-        const { value } = parseMark(raw, maxByAssessment.get(assessmentId) ?? 0);
-        const saved = savedMarks.get(key);
-        if ((value ?? undefined) === saved) return [];
-        return [{ studentId, assessmentId, value }];
-      }),
-    [draft, savedMarks, maxByAssessment],
-  );
+  const changes = useMemo<Change[]>(() => {
+    const keys = new Set([...Object.keys(draft), ...Object.keys(absenceDraft)]);
+    return [...keys].flatMap((key) => {
+      const [studentId, assessmentId] = key.split('|');
+      const raw = draft[key];
+      const absence = key in absenceDraft ? absenceDraft[key] : undefined;
+      const { value } = raw === undefined ? { value: null as number | null } : parseMark(raw, maxByAssessment.get(assessmentId) ?? 0);
+      const saved = savedMarks.get(key);
+      const nextAbsence = absence === undefined ? (saved?.absence ?? null) : absence;
+      const nextValue = raw === undefined ? (nextAbsence ? null : (saved?.mark ?? null)) : value;
+      const savedValue = nextAbsence ? null : (saved?.mark ?? null);
+      if (nextValue === savedValue && nextAbsence === (saved?.absence ?? null)) return [];
+      return [{ studentId, assessmentId, value: nextValue, absence: nextAbsence }];
+    });
+  }, [draft, absenceDraft, savedMarks, maxByAssessment]);
 
   const handleSave = async () => {
     if (!canEditMarks || changes.length === 0 || invalidKeys.size > 0) return;
@@ -91,11 +103,12 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
     setMessage(null);
     try {
       const upserts = changes
-        .filter((change) => change.value !== null)
+        .filter((change) => change.value !== null || change.absence !== null)
         .map((change) => ({
           student_id: change.studentId,
           assessment_id: change.assessmentId,
-          mark: change.value,
+          mark: change.value ?? 0,
+          absence_type: change.absence,
           updated_at: new Date().toISOString(),
         }));
       if (upserts.length > 0) {
@@ -104,7 +117,7 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
           .upsert(upserts, { onConflict: 'student_id,assessment_id' });
         if (error) throw new Error(error.message);
       }
-      for (const change of changes.filter((item) => item.value === null)) {
+      for (const change of changes.filter((item) => item.value === null && item.absence === null)) {
         const { error } = await supabase
           .from('marks')
           .delete()
@@ -162,20 +175,47 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
   const cellValue = (studentId: string, assessmentId: string) => {
     const key = markKey(studentId, assessmentId);
     if (key in draft) return draft[key];
+    if (absenceDraft[key]) return '';
     const saved = savedMarks.get(key);
-    return saved === undefined ? '' : String(saved);
+    if (!saved || saved.absence) return '';
+    return String(saved.mark);
+  };
+
+  const cellAbsence = (studentId: string, assessmentId: string): AssessmentAbsence | null => {
+    const key = markKey(studentId, assessmentId);
+    if (key in absenceDraft) return absenceDraft[key] ?? null;
+    return savedMarks.get(key)?.absence ?? null;
+  };
+
+  const setAbsence = (studentId: string, assessmentId: string, absence: AssessmentAbsence | null) => {
+    const key = markKey(studentId, assessmentId);
+    setAbsenceDraft((prev) => ({ ...prev, [key]: absence }));
+    if (absence) {
+      setDraft((prev) => {
+        if (!(key in prev)) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
   };
 
   const markInput = (student: Student, item: Assessment) => {
     const key = markKey(student.id, item.id);
+    const absence = cellAbsence(student.id, item.id);
     return (
       <MarkInput
         value={cellValue(student.id, item.id)}
+        absence={absence}
         invalid={invalidKeys.has(key)}
         max={item.max_mark}
         disabled={!canEditMarks}
+        onAbsence={(next) => setAbsence(student.id, item.id, next)}
         ariaLabel={`${student.full_name} ${item.name} mark out of ${item.max_mark}`}
-        onChange={(next) => setDraft((prev) => ({ ...prev, [key]: next }))}
+        onChange={(next) => {
+          setDraft((prev) => ({ ...prev, [key]: next }));
+          if (next !== '') setAbsence(student.id, item.id, null);
+        }}
       />
     );
   };
@@ -185,6 +225,9 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
   const unitItems = assessments.filter((item) => item.part === 'unit');
   const termItems = assessments.filter((item) => item.part === 'term');
   const unitMax = unitItems.reduce((sum, item) => sum + item.max_mark, 0);
+  const showUnitPoints = visibility?.show_unit_points ?? true;
+  const showTermMarks = visibility?.show_term_marks ?? true;
+  const showTermPoints = visibility?.show_term_points ?? true;
 
   return (
     <div className="space-y-4">
@@ -276,27 +319,37 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
                     <span className="block text-[11px] font-medium normal-case text-slate-500">Out of {item.max_mark}</span>
                   </th>
                 ))}
-                <th className={`${sectionBorder} ${headerCellClass}`}>
-                  <span className="block normal-case tracking-normal">Total</span>
-                  <span className="block text-[11px] font-medium normal-case text-slate-500">Out of {unitMax}</span>
-                </th>
-                <th className={headerCellClass}>
-                  <span className="block normal-case tracking-normal">30% of Unit Test</span>
-                  <span className="block text-[11px] font-medium normal-case text-slate-500">Out of 30</span>
-                </th>
-                {termItems.map((item) => (
+                {unitItems.length > 0 && (
+                  <>
+                    <th className={`${sectionBorder} ${headerCellClass}`}>
+                      <span className="block normal-case tracking-normal">Total</span>
+                      <span className="block text-[11px] font-medium normal-case text-slate-500">Out of {unitMax}</span>
+                    </th>
+                    {showUnitPoints && (
+                      <th className={headerCellClass}>
+                        <span className="block normal-case tracking-normal">30% of Unit Test</span>
+                        <span className="block text-[11px] font-medium normal-case text-slate-500">Out of 30</span>
+                      </th>
+                    )}
+                  </>
+                )}
+                {showTermMarks && termItems.map((item) => (
                   <th key={item.id} className={`${sectionBorder} ${headerCellClass}`}>
                     <span className="block normal-case tracking-normal">2nd Term Marks</span>
                     <span className="block text-[11px] font-medium normal-case text-slate-500">Out of {item.max_mark}</span>
                   </th>
                 ))}
-                <th className={headerCellClass}>
-                  <span className="block normal-case tracking-normal">70% of Term Test</span>
-                  <span className="block text-[11px] font-medium normal-case text-slate-500">Out of 70</span>
-                </th>
+                {showTermPoints && termItems.length > 0 && (
+                  <th className={headerCellClass}>
+                    <span className="block normal-case tracking-normal">70% of Term Test</span>
+                    <span className="block text-[11px] font-medium normal-case text-slate-500">Out of 70</span>
+                  </th>
+                )}
                 <th className={`${sectionBorder} ${headerCellClass}`}>
                   <span className="block normal-case tracking-normal">Total (100%)</span>
-                  <span className="block text-[11px] font-medium normal-case text-slate-500">70% + 30%</span>
+                  <span className="block text-[11px] font-medium normal-case text-slate-500">
+                    {showUnitPoints && showTermPoints ? '70% + 30%' : 'Included parts'}
+                  </span>
                 </th>
                 <th className={headerCellClass}>Grade</th>
               </tr>
@@ -316,14 +369,20 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
                     {unitItems.map((item) => (
                       <Fragment key={item.id}>{markInput(student, item)}</Fragment>
                     ))}
-                    <td className={`${sectionBorder} ${valueCellClass}`}>
-                      {subjectResult?.unit.obtained ?? 0} / {subjectResult?.unit.max ?? 0}
-                    </td>
-                    <td className={valueCellClass}>{formatSheetValue(subjectResult ? subjectResult.unit.points : null)}</td>
-                    {termItems.map((item) => (
+                    {unitItems.length > 0 && (
+                      <>
+                        <td className={`${sectionBorder} ${valueCellClass}`}>
+                          {subjectResult?.unit.obtained ?? 0} / {subjectResult?.unit.max ?? 0}
+                        </td>
+                        {showUnitPoints && <td className={valueCellClass}>{formatSheetValue(subjectResult ? subjectResult.unit.points : null)}</td>}
+                      </>
+                    )}
+                    {showTermMarks && termItems.map((item) => (
                       <Fragment key={item.id}>{markInput(student, item)}</Fragment>
                     ))}
-                    <td className={valueCellClass}>{formatSheetValue(subjectResult ? subjectResult.term.points : null)}</td>
+                    {showTermPoints && termItems.length > 0 && (
+                      <td className={valueCellClass}>{formatSheetValue(subjectResult ? subjectResult.term.points : null)}</td>
+                    )}
                     <td className={`${sectionBorder} px-3 py-2 text-center text-sm font-semibold tabular-nums text-slate-900`}>
                       {formatSheetValue(subjectResult?.percent ?? null)}
                     </td>
@@ -383,36 +442,64 @@ function GradeChip({ grade }: { grade: string }) {
 
 function MarkInput({
   value,
+  absence,
   invalid,
   max,
   disabled,
   ariaLabel,
+  onAbsence,
   onChange,
 }: {
   value: string;
+  absence: AssessmentAbsence | null;
   invalid: boolean;
   max: number;
   disabled: boolean;
   ariaLabel: string;
+  onAbsence: (absence: AssessmentAbsence | null) => void;
   onChange: (value: string) => void;
 }) {
   const stateClass = invalid
     ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-500 focus:ring-red-500/20'
-    : 'border-slate-300 text-slate-900 focus:border-blue-600 focus:ring-blue-600/20';
+    : absence
+      ? 'border-amber-400 bg-amber-50 text-amber-900'
+      : 'border-slate-300 text-slate-900 focus:border-blue-600 focus:ring-blue-600/20';
 
   return (
     <td className={`${sectionBorder} px-3 py-2 text-center`}>
-      <input
-        type="text"
-        disabled={disabled}
-        inputMode="decimal"
-        value={value}
-        aria-label={ariaLabel}
-        aria-invalid={invalid}
-        placeholder={`/${max}`}
-        onChange={(event) => onChange(event.target.value)}
-        className={`${cellInputBase} ${disabled ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500' : stateClass}`}
-      />
+      <div className="flex flex-col items-center gap-1">
+        <input
+          type="text"
+          disabled={disabled || absence !== null}
+          inputMode="decimal"
+          value={absence ? absence : value}
+          aria-label={ariaLabel}
+          aria-invalid={invalid}
+          placeholder={`/${max}`}
+          onChange={(event) => onChange(event.target.value)}
+          className={`${cellInputBase} ${disabled ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500' : stateClass}`}
+        />
+        {!disabled && (
+          <div className="flex gap-0.5">
+            {(['MC', 'OL'] as AssessmentAbsence[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={absence === option}
+                aria-label={`${ariaLabel} ${option}`}
+                onClick={() => onAbsence(absence === option ? null : option)}
+                className={`rounded px-1.5 py-0.5 text-[10px] font-bold leading-none transition ${
+                  absence === option
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-800'
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </td>
   );
 }

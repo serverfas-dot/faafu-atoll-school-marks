@@ -1,19 +1,37 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Check, ImagePlus, Pencil, Trash2, UserPlus, X } from 'lucide-react';
+import { Check, GraduationCap, ImagePlus, Pencil, Trash2, UserPlus, X } from 'lucide-react';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { EmptyState, Notice, SelectField, Spinner } from '@/components/ui';
 import { countMarks } from '@/lib/adminCounts';
 import { supabase } from '@/lib/supabase';
 import { StudentPhoto } from '@/components/report/StudentPhoto';
 import { useClasses } from '@/lib/useClasses';
+import { useSchoolYears } from '@/lib/useSchoolYears';
 import { sortStudents } from '@/lib/marksData';
 import { uploadStudentPhoto } from '@/lib/studentPhotos';
 import type { Student } from '@/lib/types';
 import { cardClass, dangerButtonClass, inputClass, primaryButtonClass, secondaryButtonClass } from '@/lib/styles';
 
+function sourceClassCode(code: string): string | null {
+  if (code === 'UKG') return null;
+  if (code === '1') return 'UKG';
+  const match = code.match(/^(\d+)(.*)$/);
+  if (!match) return null;
+  const grade = Number(match[1]);
+  if (grade <= 1) return null;
+  const previous = grade - 1;
+  return previous <= 8 ? String(previous) : `${previous}${match[2]}`;
+}
+
+function classLabelFor(code: string, labels: { value: string; label: string }[]): string {
+  return labels.find((item) => item.value === code)?.label ?? `Class ${code}`;
+}
+
 export function StudentsManager() {
   const { classes } = useClasses();
+  const { years } = useSchoolYears(true);
   const [classCode, setClassCode] = useState('1');
+  const [schoolYear, setSchoolYear] = useState<number | null>(null);
   const [students, setStudents] = useState<Student[] | null>(null);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -27,17 +45,25 @@ export function StudentsManager() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [photoBusyId, setPhotoBusyId] = useState<string | null>(null);
+  const [promoteBusy, setPromoteBusy] = useState(false);
+  const [promoteMessage, setPromoteMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (years.length > 0 && schoolYear === null) setSchoolYear(years[years.length - 1].year);
+  }, [schoolYear, years]);
 
   useEffect(() => {
     if (classes.length > 0 && !classes.some((item) => item.value === classCode)) setClassCode(classes[0].value);
   }, [classes, classCode]);
 
   useEffect(() => {
+    if (schoolYear === null) return;
     let cancelled = false;
     supabase
       .from('students')
-      .select('id, full_name, roll_no, class_name, photo_url')
+      .select('id, full_name, roll_no, class_name, school_year, photo_url')
       .eq('class_name', classCode)
+      .eq('school_year', schoolYear)
       .then(({ data, error: queryError }) => {
         if (cancelled) return;
         if (queryError) {
@@ -50,17 +76,17 @@ export function StudentsManager() {
     return () => {
       cancelled = true;
     };
-  }, [classCode, version]);
+  }, [classCode, schoolYear, version]);
 
   const handleAdd = async (event: FormEvent) => {
     event.preventDefault();
     const name = fullName.trim();
-    if (!name) return;
+    if (!name || schoolYear === null) return;
     setSaving(true);
     setError(null);
     const { error: insertError } = await supabase
       .from('students')
-      .insert({ full_name: name, roll_no: rollNo.trim(), class_name: classCode });
+      .insert({ full_name: name, roll_no: rollNo.trim(), class_name: classCode, school_year: schoolYear });
     setSaving(false);
     if (insertError) {
       setError(insertError.message);
@@ -131,9 +157,74 @@ export function StudentsManager() {
     setVersion((value) => value + 1);
   };
 
+  const handlePromote = async () => {
+    if (schoolYear === null) return;
+    const sourceCode = sourceClassCode(classCode);
+    if (!sourceCode) {
+      setPromoteMessage({ tone: 'error', text: 'There is no class below this one. Add new students by hand.' });
+      return;
+    }
+    const previousYear = schoolYear - 1;
+    setPromoteBusy(true);
+    setPromoteMessage(null);
+    setError(null);
+    try {
+      const { data: previousRows, error: previousError } = await supabase
+        .from('students')
+        .select('full_name, roll_no, photo_url')
+        .eq('class_name', sourceCode)
+        .eq('school_year', previousYear);
+      if (previousError) throw new Error(previousError.message);
+      const source = (previousRows ?? []) as { full_name: string; roll_no: string; photo_url: string | null }[];
+      if (source.length === 0) {
+        setPromoteMessage({ tone: 'error', text: `No students were in ${classLabelFor(sourceCode, classes)} in ${previousYear}.` });
+        return;
+      }
+      const existing = new Set(
+        (students ?? []).map((student) => `${student.full_name.trim().toLowerCase()}|${student.roll_no.trim()}`),
+      );
+      const toAdd = source
+        .filter((student) => !existing.has(`${student.full_name.trim().toLowerCase()}|${student.roll_no.trim()}`))
+        .map((student) => ({
+          full_name: student.full_name,
+          roll_no: student.roll_no,
+          class_name: classCode,
+          school_year: schoolYear,
+          photo_url: student.photo_url,
+        }));
+      if (toAdd.length > 0) {
+        const { error: insertError } = await supabase.from('students').insert(toAdd);
+        if (insertError) throw new Error(insertError.message);
+      }
+      const skipped = source.length - toAdd.length;
+      setPromoteMessage({
+        tone: 'success',
+        text: `Copied ${toAdd.length} student${toAdd.length === 1 ? '' : 's'} from ${classLabelFor(sourceCode, classes)} ${previousYear}.${skipped > 0 ? ` ${skipped} already in this grade were skipped.` : ''}`,
+      });
+      setVersion((value) => value + 1);
+    } catch (promoteError) {
+      setPromoteMessage({
+        tone: 'error',
+        text: promoteError instanceof Error ? promoteError.message : 'Could not copy the students.',
+      });
+    } finally {
+      setPromoteBusy(false);
+    }
+  };
+
+  const sourceCode = sourceClassCode(classCode);
+  const previousYear = schoolYear === null ? null : schoolYear - 1;
+
   return (
     <div className="space-y-6">
-      <div className="max-w-xs">
+      <div className="grid gap-3 sm:grid-cols-2 max-w-md">
+        <SelectField label="School year" value={schoolYear === null ? '' : String(schoolYear)} onChange={(value) => setSchoolYear(Number(value))}>
+          {years.map((item) => (
+            <option key={item.year} value={item.year}>
+              {item.year}
+            </option>
+          ))}
+        </SelectField>
         <SelectField label="Class" value={classCode} onChange={setClassCode}>
           {classes.map((item) => (
             <option key={item.value} value={item.value}>
@@ -142,6 +233,23 @@ export function StudentsManager() {
           ))}
         </SelectField>
       </div>
+
+      {sourceCode && previousYear !== null && (
+        <div className={`${cardClass} flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between`}>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">New school year?</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Copy the {previousYear} {classLabelFor(sourceCode, classes)} students into {classLabelFor(classCode, classes)} for {schoolYear}. Their names, index numbers and photos come across; marks start empty.
+            </p>
+          </div>
+          <button type="button" onClick={() => void handlePromote()} disabled={promoteBusy} className={`${primaryButtonClass} shrink-0`}>
+            <GraduationCap className="h-4 w-4" aria-hidden />
+            {promoteBusy ? 'Copying...' : `Copy ${previousYear} students`}
+          </button>
+        </div>
+      )}
+
+      {promoteMessage && <Notice tone={promoteMessage.tone}>{promoteMessage.text}</Notice>}
 
       <form onSubmit={handleAdd} className={`${cardClass} grid gap-3 p-5 sm:grid-cols-[1fr_180px_auto] sm:items-end`}>
         <label className="block">
@@ -152,7 +260,7 @@ export function StudentsManager() {
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Index number</span>
           <input value={rollNo} onChange={(event) => setRollNo(event.target.value)} className={inputClass} />
         </label>
-        <button type="submit" disabled={saving} className={primaryButtonClass}>
+        <button type="submit" disabled={saving || schoolYear === null} className={primaryButtonClass}>
           <UserPlus className="h-4 w-4" aria-hidden />
           Add student
         </button>
@@ -160,10 +268,13 @@ export function StudentsManager() {
 
       {error && <Notice tone="error">{error}</Notice>}
 
-      {students === null ? (
+      {students === null || schoolYear === null ? (
         <Spinner />
       ) : students.length === 0 ? (
-        <EmptyState title="No students in this grade" description="Add the first student using the form above." />
+        <EmptyState
+          title={`No students in this grade for ${schoolYear}`}
+          description={sourceCode ? `Use "Copy ${previousYear} students" above, or add the first student by hand.` : 'Add the first student using the form above.'}
+        />
       ) : (
         <div className={`${cardClass} overflow-hidden`}>
           <ul className="divide-y divide-slate-100">

@@ -90,6 +90,7 @@ export default function MarksEntryPage() {
     [data, activeSubject],
   );
 
+  const activeVisibility = data?.visibility.find((row) => row.subject_id === activeSubject?.id);
   const savedMarks = useMemo(() => buildMarkIndex(data?.marks ?? []), [data]);
   const assignmentsReady = isAdmin || assignedIds !== null || assignmentError !== null;
 
@@ -175,6 +176,7 @@ export default function MarksEntryPage() {
           assessments={subjectAssessments}
           savedMarks={savedMarks}
           sheet={sheetKindFor(classCode, classOption?.sheetKind)}
+          visibility={activeVisibility}
           allowClearAllMarks={isAdmin}
           canEditMarks={canEditMarks}
           onSaved={reload}

@@ -12,6 +12,7 @@ export type Student = {
   full_name: string;
   roll_no: string;
   class_name: string;
+  school_year: number;
   photo_url?: string | null;
 };
 
@@ -41,6 +42,16 @@ export type MarkRow = {
   student_id: string;
   assessment_id: string;
   mark: number;
+  absence_type?: string | null;
+};
+
+export type SubjectResultVisibility = {
+  subject_id: string;
+  school_year: number;
+  semester: number;
+  show_unit_points: boolean;
+  show_term_marks: boolean;
+  show_term_points: boolean;
 };
 
 export type GradeSemesterData = {
@@ -48,4 +59,5 @@ export type GradeSemesterData = {
   subjects: Subject[];
   assessments: Assessment[];
   marks: MarkRow[];
+  visibility: SubjectResultVisibility[];
 };

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Check, ChevronDown, Pencil, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, Eye, EyeOff, Pencil, Trash2, X } from 'lucide-react';
 import { AssessmentItem } from '@/components/admin/AssessmentItem';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { Notice, SelectField, TextField } from '@/components/ui';
@@ -7,7 +7,7 @@ import { countMarks } from '@/lib/adminCounts';
 import { ASSESSMENT_PART_OPTIONS, sheetKindFor } from '@/lib/grading';
 import { SEMESTERS } from '@/lib/school';
 import { supabase } from '@/lib/supabase';
-import type { Assessment, AssessmentPart, Subject } from '@/lib/types';
+import type { Assessment, AssessmentPart, Subject, SubjectResultVisibility } from '@/lib/types';
 import { cardClass, inputClass, primaryButtonClass, secondaryButtonClass } from '@/lib/styles';
 
 const iconButtonClass =
@@ -17,12 +17,14 @@ export function SubjectCard({
   subject,
   schoolYear,
   assessments,
+  visibility,
   onChanged,
   onError,
 }: {
   subject: Subject;
   schoolYear: number;
   assessments: Assessment[];
+  visibility: SubjectResultVisibility[];
   onChanged: () => void;
   onError: (message: string | null) => void;
 }) {
@@ -34,6 +36,7 @@ export function SubjectCard({
   const [pendingMarks, setPendingMarks] = useState<number | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [visibilityBusy, setVisibilityBusy] = useState<string | null>(null);
 
   const handleRename = async (event: FormEvent) => {
     event.preventDefault();
@@ -147,11 +150,50 @@ export function SubjectCard({
             const semesterItems = assessments
               .filter((item) => item.semester === semester.value)
               .sort((a, b) => a.sort_order - b.sort_order);
+            const currentVisibility = visibility.find((item) => item.semester === semester.value);
+            const settings = {
+              show_unit_points: currentVisibility?.show_unit_points ?? true,
+              show_term_marks: currentVisibility?.show_term_marks ?? true,
+              show_term_points: currentVisibility?.show_term_points ?? true,
+            };
+            const updateVisibility = async (field: VisibilityField) => {
+              const nextSettings = { ...settings, [field]: !settings[field] };
+              setVisibilityBusy(`${semester.value}-${field}`);
+              onError(null);
+              const { error } = await supabase.from('subject_result_visibility').upsert(
+                {
+                  subject_id: subject.id,
+                  school_year: schoolYear,
+                  semester: semester.value,
+                  ...nextSettings,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'subject_id,school_year,semester' },
+              );
+              setVisibilityBusy(null);
+              if (error) {
+                onError('Could not update the result column setting.');
+                return;
+              }
+              onChanged();
+            };
             return (
               <div key={semester.value}>
-                <h3 className="mb-2 text-sm font-semibold text-slate-800">
-                  {semester.label} <span className="font-normal text-slate-500">({semester.dates})</span>
-                </h3>
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-sm font-semibold text-slate-800">
+                    {semester.label} <span className="font-normal text-slate-500">({semester.dates})</span>
+                  </h3>
+                  {secondary && (
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 sm:max-w-2xl">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">Result columns</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <VisibilityToggle label="30% of Unit Test" visible={settings.show_unit_points} busy={visibilityBusy === `${semester.value}-show_unit_points`} onClick={() => void updateVisibility('show_unit_points')} />
+                        <VisibilityToggle label="2nd Term Marks" visible={settings.show_term_marks} busy={visibilityBusy === `${semester.value}-show_term_marks`} onClick={() => void updateVisibility('show_term_marks')} />
+                        <VisibilityToggle label="70% of Term Test" visible={settings.show_term_points} busy={visibilityBusy === `${semester.value}-show_term_points`} onClick={() => void updateVisibility('show_term_points')} />
+                      </div>
+                    </div>
+                  )}
+                </div>
                 {semesterItems.length === 0 ? (
                   <p className="mb-3 text-sm text-slate-500">No assessments yet.</p>
                 ) : (
@@ -204,6 +246,17 @@ export function SubjectCard({
         </ConfirmDialog>
       )}
     </div>
+  );
+}
+
+type VisibilityField = 'show_unit_points' | 'show_term_marks' | 'show_term_points';
+
+function VisibilityToggle({ label, visible, busy, onClick }: { label: string; visible: boolean; busy: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} disabled={busy} className={secondaryButtonClass}>
+      {visible ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+      {visible ? `Hide ${label}` : `Show ${label}`}
+    </button>
   );
 }
 

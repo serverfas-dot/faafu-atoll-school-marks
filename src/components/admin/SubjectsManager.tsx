@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useClasses } from '@/lib/useClasses';
 import { useSchoolYears } from '@/lib/useSchoolYears';
 import { MARKS_SHEET_YEAR } from '@/lib/school';
-import type { Assessment, Subject } from '@/lib/types';
+import type { Assessment, Subject, SubjectResultVisibility } from '@/lib/types';
 import { cardClass, inputClass, primaryButtonClass } from '@/lib/styles';
 
 export function SubjectsManager() {
@@ -16,6 +16,7 @@ export function SubjectsManager() {
   const [schoolYear, setSchoolYear] = useState(MARKS_SHEET_YEAR);
   const [subjects, setSubjects] = useState<Subject[] | null>(null);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [visibility, setVisibility] = useState<SubjectResultVisibility[]>([]);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [newSubjectName, setNewSubjectName] = useState('');
@@ -44,23 +45,37 @@ export function SubjectsManager() {
       }
       const list = (subjectRows ?? []) as Subject[];
       let items: Assessment[] = [];
+      let visibilityRows: SubjectResultVisibility[] = [];
       if (list.length > 0) {
-        const { data: assessmentRows, error: assessmentError } = await supabase
-          .from('assessments')
-          .select('id, subject_id, school_year, semester, name, max_mark, weight, part, sort_order, is_active')
-          .eq('school_year', schoolYear)
-          .in('subject_id', list.map((subject) => subject.id))
-          .order('sort_order');
+        const [assessmentResult, visibilityResult] = await Promise.all([
+          supabase
+            .from('assessments')
+            .select('id, subject_id, school_year, semester, name, max_mark, weight, part, sort_order, is_active')
+            .eq('school_year', schoolYear)
+            .in('subject_id', list.map((subject) => subject.id))
+            .order('sort_order'),
+          supabase
+            .from('subject_result_visibility')
+            .select('subject_id, school_year, semester, show_unit_points, show_term_marks, show_term_points')
+            .eq('school_year', schoolYear)
+            .in('subject_id', list.map((subject) => subject.id)),
+        ]);
         if (cancelled) return;
-        if (assessmentError) {
-          setError(assessmentError.message);
+        if (assessmentResult.error) {
+          setError(assessmentResult.error.message);
           return;
         }
-        items = (assessmentRows ?? []) as Assessment[];
+        if (visibilityResult.error) {
+          setError(visibilityResult.error.message);
+          return;
+        }
+        items = (assessmentResult.data ?? []) as Assessment[];
+        visibilityRows = (visibilityResult.data ?? []) as SubjectResultVisibility[];
       }
       setError(null);
       setSubjects(list);
       setAssessments(items);
+      setVisibility(visibilityRows);
     })();
     return () => {
       cancelled = true;
@@ -131,6 +146,7 @@ export function SubjectsManager() {
               subject={subject}
               schoolYear={schoolYear}
               assessments={assessments.filter((item) => item.subject_id === subject.id)}
+              visibility={visibility.filter((item) => item.subject_id === subject.id)}
               onChanged={() => setVersion((value) => value + 1)}
               onError={setError}
             />

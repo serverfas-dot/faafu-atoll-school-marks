@@ -100,9 +100,14 @@ export function StudentReportCard({
                 <div className="h-2.5 overflow-hidden rounded-full bg-slate-200/80" role="img" aria-label={`${subject.name} ${formatPercent(subject.percent)}`}>
                   <div className={`h-full rounded-full transition-[width] duration-700 ease-out ${gradeBarClass(subject.grade)}`} style={{ width: animated ? `${width}%` : '0%' }} />
                 </div>
-                {sheet === 'secondary' && subject.term.max > 0 && (
+                {sheet === 'secondary' && (subject.showUnitPoints || subject.showTermPoints) && (subject.unit.max > 0 || subject.term.max > 0) && (
                   <p className="mt-2 text-xs font-medium text-slate-600">
-                    30% of Unit Test {subject.unit.points.toFixed(2)} / {SECONDARY_PART_POINTS.unit} · 70% of Term Test {subject.term.points.toFixed(2)} / {SECONDARY_PART_POINTS.term}
+                    {[
+                      subject.showUnitPoints && subject.unit.max > 0 ? `30% of Unit Test ${subject.unit.points.toFixed(2)} / ${SECONDARY_PART_POINTS.unit}` : null,
+                      subject.showTermPoints && subject.term.max > 0 ? `70% of Term Test ${subject.term.points.toFixed(2)} / ${SECONDARY_PART_POINTS.term}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </p>
                 )}
                 {subject.assessments.length > 0 && (
