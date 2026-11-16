@@ -56,9 +56,6 @@ export function StudentReportCard({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <span className={`rounded-full px-3 py-1.5 text-sm font-bold ring-1 ring-inset ${gradeBadgeClass(result.finalGrade)}`}>
-              {result.finalGrade} final
-            </span>
             <button type="button" onClick={() => printReport(`Faafu Atoll School - ${student.full_name} - ${schoolYear} - Semester ${semester} Report`)} className={`${secondaryButtonClass} border-white/30 bg-white/10 text-white hover:bg-white/20 print:hidden`}>
               <Printer className="h-4 w-4" aria-hidden />
               Print report
@@ -68,7 +65,7 @@ export function StudentReportCard({
       </header>
 
       <div className="grid grid-cols-2 gap-3 bg-gradient-to-b from-blue-50 to-white p-4 sm:grid-cols-4 sm:p-5">
-        <Stat label="Total" value={formatPercent(result.total)} />
+        <Stat label="Total" value={formatAmount(result.total)} />
         <Stat label="Average" value={formatPercent(result.average)} />
         <Stat label="Final grade" value={result.finalGrade} badge />
         <Stat label="Class rank" value={rank ? `${rank} of ${classSize}` : '-'} icon={rank === 1 ? <Trophy className="h-4 w-4 text-amber-500" aria-hidden /> : null} />
@@ -90,14 +87,14 @@ export function StudentReportCard({
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <span className="font-medium text-slate-800">{subject.name}</span>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold tabular-nums text-slate-900">{formatPercent(subject.percent)}</span>
+                    <span className="text-sm font-semibold tabular-nums text-slate-900">{formatAmount(subject.percent)}</span>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${gradeBadgeClass(subject.grade)}`}>
                       {subject.grade}
                       <ArrowUpRight className="h-3 w-3" aria-hidden />
                     </span>
                   </div>
                 </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-slate-200/80" role="img" aria-label={`${subject.name} ${formatPercent(subject.percent)}`}>
+                <div className="h-2.5 overflow-hidden rounded-full bg-slate-200/80" role="img" aria-label={`${subject.name} ${formatAmount(subject.percent)}`}>
                   <div className={`h-full rounded-full transition-[width] duration-700 ease-out ${gradeBarClass(subject.grade)}`} style={{ width: animated ? `${width}%` : '0%' }} />
                 </div>
                 {sheet === 'secondary' && (subject.showUnitPoints || subject.showTermPoints) && (subject.unit.max > 0 || subject.term.max > 0) && (
@@ -120,6 +117,10 @@ export function StudentReportCard({
       </section>
     </article>
   );
+}
+
+function formatAmount(value: number | null): string {
+  return value === null ? '-' : String(Number(value.toFixed(2)));
 }
 
 function Stat({ label, value, badge = false, icon = null }: { label: string; value: string; badge?: boolean; icon?: ReactNode }) {

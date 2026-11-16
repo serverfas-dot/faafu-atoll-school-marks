@@ -167,16 +167,6 @@ export default function ReportsPage() {
       {view === 'analysis' && selectedStudent && selectedResult && createPortal(
         <div className="print-report-root">
           <div className="student-report-printable">
-            <PrintClassSummary
-              className={classLabel(classCode, classes)}
-              semester={semester}
-              schoolYear={reportYear}
-              classAverage={classAverage}
-              classSummary={classSummary}
-              assessmentSummary={assessmentSummary}
-              topStudent={topStudent}
-              totalStudents={currentResults.length}
-            />
             <StudentReportCard
               key={`${selectedStudent.id}-${reportYear}-${semester}`}
               student={selectedStudent}
@@ -187,6 +177,16 @@ export default function ReportsPage() {
               schoolYear={reportYear}
               className={classLabel(classCode, classes)}
               sheet={sheet}
+            />
+            <PrintClassSummary
+              className={classLabel(classCode, classes)}
+              semester={semester}
+              schoolYear={reportYear}
+              classAverage={classAverage}
+              classSummary={classSummary}
+              assessmentSummary={assessmentSummary}
+              topStudent={topStudent}
+              totalStudents={currentResults.length}
             />
           </div>
         </div>,
@@ -317,7 +317,6 @@ export default function ReportsPage() {
                 classSummary={classSummary}
                 classAverage={classAverage}
                 topStudent={topStudent}
-                removeFinalPercent={sheet === 'primary'}
               />
             )}
             {view === 'class-pass' && <ClassPassView summary={classSummary} distribution={distribution} rows={resultRows} sheet={sheet} />}
@@ -429,16 +428,6 @@ function AnalysisView({
             <EmptyState title="Select a student" description="Choose a student from the list to open their grade analysis." />
           ) : (
             <div className="student-report-screen">
-              <PrintClassSummary
-                className={className}
-                semester={semester}
-                schoolYear={schoolYear}
-                classAverage={classAverage}
-                classSummary={classSummary}
-                assessmentSummary={assessmentSummary}
-                topStudent={topStudent}
-                totalStudents={classSize}
-              />
               <StudentReportCard
                 key={`${selectedStudent.id}-${schoolYear}-${semester}`}
                 student={selectedStudent}
@@ -449,6 +438,16 @@ function AnalysisView({
                 schoolYear={schoolYear}
                 className={className}
                 sheet={sheet}
+              />
+              <PrintClassSummary
+                className={className}
+                semester={semester}
+                schoolYear={schoolYear}
+                classAverage={classAverage}
+                classSummary={classSummary}
+                assessmentSummary={assessmentSummary}
+                topStudent={topStudent}
+                totalStudents={classSize}
               />
             </div>
           )}
@@ -527,7 +526,7 @@ function AssessmentView({ outcomes, summary, sheet }: { outcomes: AssessmentOutc
   );
 }
 
-function SemesterView({ rows, subjects, classSummary, classAverage, topStudent, removeFinalPercent }: { rows: ResultRow[]; subjects: { id: string; name: string; class_name: string; sort_order: number }[]; classSummary: OutcomeSummary; classAverage: number | null; topStudent: StudentResult | undefined; removeFinalPercent: boolean }) {
+function SemesterView({ rows, subjects, classSummary, classAverage, topStudent }: { rows: ResultRow[]; subjects: { id: string; name: string; class_name: string; sort_order: number }[]; classSummary: OutcomeSummary; classAverage: number | null; topStudent: StudentResult | undefined }) {
   return (
     <section className="space-y-6">
       <ReportIntro eyebrow="Each semester · all students" title="Semester final report" description="The complete class result for the selected semester, including every subject, final grade and rank." />
@@ -536,7 +535,7 @@ function SemesterView({ rows, subjects, classSummary, classAverage, topStudent, 
         <ReportKpi label="Class pass rate" value={formatPercent(classSummary.passRate)} detail={`${classSummary.pass} passing students`} icon={<ShieldCheck className="h-5 w-5" />} tone="emerald" />
         <ReportKpi label="Top student" value={topStudent ? formatPercent(topStudent.average) : '-'} detail="Highest average" icon={<Trophy className="h-5 w-5" />} tone="sky" />
       </div>
-      {rows.length === 0 ? <EmptyState title="No final results yet" description="The final report will appear after students and subjects have results." /> : <ResultTable subjects={subjects} rows={rows} removeFinalPercent={removeFinalPercent} />}
+      {rows.length === 0 ? <EmptyState title="No final results yet" description="The final report will appear after students and subjects have results." /> : <ResultTable subjects={subjects} rows={rows} />}
     </section>
   );
 }

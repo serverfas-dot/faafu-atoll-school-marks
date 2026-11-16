@@ -82,7 +82,7 @@ export default function ResultsPage() {
       ) : data && data.subjects.length === 0 ? (
         <EmptyState title="No subjects yet" description="Subjects for this class have not been added yet." />
       ) : (
-        <ResultTable subjects={data?.subjects ?? []} rows={rows} removeFinalPercent={classOption?.sheetKind !== 'secondary'} />
+        <ResultTable subjects={data?.subjects ?? []} rows={rows} />
       )}
     </>
   );

@@ -46,7 +46,9 @@
 
   .student-print-summary {
     display: block;
-    margin-bottom: 5px;
+    margin-top: 5px;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .student-print-summary-heading {

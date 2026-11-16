@@ -1,6 +1,5 @@
 import type { Student, Subject } from '@/lib/types';
 import type { StudentResult } from '@/lib/grading';
-import { formatPercent } from '@/lib/grading';
 import { cardClass, gradeBadgeClass } from '@/lib/styles';
 
 export type ResultRow = {
@@ -20,7 +19,7 @@ function GradeCell({ grade }: { grade: string }) {
   );
 }
 
-export function ResultTable({ subjects, rows, removeFinalPercent }: { subjects: Subject[]; rows: ResultRow[]; removeFinalPercent: boolean }) {
+export function ResultTable({ subjects, rows }: { subjects: Subject[]; rows: ResultRow[] }) {
   return (
     <div className={`${cardClass} overflow-x-auto`}>
       <table className="min-w-full border-collapse text-left">
@@ -55,7 +54,7 @@ export function ResultTable({ subjects, rows, removeFinalPercent }: { subjects: 
                 <SubjectCells key={subject.subjectId} percent={subject.percent} grade={subject.grade} />
               ))}
               <td className={`${cellClass} border-l border-slate-200 font-semibold text-slate-900`}>{formatAmount(row.result.total)}</td>
-              <td className={`${cellClass} font-semibold text-slate-900`}>{formatFinalValue(row.result.average, removeFinalPercent)}</td>
+              <td className={`${cellClass} font-semibold text-slate-900`}>{formatAmount(row.result.average)}</td>
               <td className={cellClass}>
                 <GradeCell grade={row.result.finalGrade} />
               </td>
@@ -73,10 +72,7 @@ function formatAmount(value: number | null): string {
   return value === null ? '-' : String(Number(value.toFixed(2)));
 }
 
-function formatFinalValue(value: number | null, removePercent: boolean): string {
-  const formatted = formatPercent(value);
-  return removePercent ? formatted.replace('%', '') : formatted;
-}
+ 
 
 function FragmentHeader() {
   return (
@@ -90,7 +86,7 @@ function FragmentHeader() {
 function SubjectCells({ percent, grade }: { percent: number | null; grade: string }) {
   return (
     <>
-      <td className={`${cellClass} border-l border-slate-100 text-slate-800`}>{formatPercent(percent)}</td>
+      <td className={`${cellClass} border-l border-slate-100 text-slate-800`}>{formatAmount(percent)}</td>
       <td className={cellClass}>
         <GradeCell grade={grade} />
       </td>
