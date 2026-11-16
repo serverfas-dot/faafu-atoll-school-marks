@@ -11,6 +11,7 @@ type PerformanceStatus = 'pass' | 'fail' | 'exempted' | 'not-entered';
 
 type AssessmentSeries = {
   name: string;
+  sourceName: string;
   sortOrder: number;
   color: string;
   lightColor: string;
@@ -66,7 +67,7 @@ export function GradePerformance({
   assessments: Assessment[];
   results: StudentResult[];
 }) {
-  const series = useMemo(() => buildSeries(assessments), [assessments]);
+  const series = useMemo(() => buildSeries(assessments, semester), [assessments, semester]);
   const [assessmentName, setAssessmentName] = useState('');
   const activeSeries = series.find((item) => item.name === assessmentName) ?? series[0];
   const subjectMetrics = useMemo(
@@ -107,7 +108,7 @@ export function GradePerformance({
               <p className="mt-1 text-sm text-blue-100">{className} · {schoolYear} · Semester {semester} · {sheet === 'secondary' ? 'Secondary grading' : 'Primary grading'}</p>
             </div>
             <div className="w-full lg:w-72">
-              <SelectField label="Assessment" value={activeSeries?.name ?? ''} onChange={setAssessmentName}>
+              <SelectField label="Assessment" value={activeSeries?.name ?? ''} onChange={setAssessmentName} className="[&>span]:text-white">
                 {series.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
               </SelectField>
             </div>
@@ -274,15 +275,18 @@ function StudentRow({ metric }: { metric: StudentMetric }) {
   );
 }
 
-function buildSeries(assessments: Assessment[]): AssessmentSeries[] {
-  const unique = new Map<string, number>();
+function buildSeries(assessments: Assessment[], semester: number): AssessmentSeries[] {
+  const unique = new Map<string, { sourceName: string; sortOrder: number }>();
   assessments.forEach((assessment) => {
-    const currentOrder = unique.get(assessment.name);
-    if (currentOrder === undefined || assessment.sort_order < currentOrder) unique.set(assessment.name, assessment.sort_order);
+    const name = assessment.part === 'term' ? `${semester === 1 ? '1st' : '2nd'} Term test` : assessment.name;
+    const current = unique.get(name);
+    if (!current || assessment.sort_order < current.sortOrder) unique.set(name, { sourceName: assessment.name, sortOrder: assessment.sort_order });
   });
+  const termName = `${semester === 1 ? '1st' : '2nd'} Term test`;
+  if (!unique.has(termName)) unique.set(termName, { sourceName: 'Term Test', sortOrder: Number.MAX_SAFE_INTEGER });
   return [...unique.entries()]
-    .sort((a, b) => a[1] - b[1])
-    .map(([name, sortOrder], index) => ({ name, sortOrder, ...SERIES_COLORS[index % SERIES_COLORS.length] }));
+    .sort((a, b) => a[1].sortOrder - b[1].sortOrder)
+    .map(([name, details], index) => ({ name, ...details, ...SERIES_COLORS[index % SERIES_COLORS.length] }));
 }
 
 function buildSubjectMetrics(subjects: Subject[], series: AssessmentSeries[], results: StudentResult[], sheet: SheetKind): SubjectMetric[] {
@@ -291,10 +295,10 @@ function buildSubjectMetrics(subjects: Subject[], series: AssessmentSeries[], re
     assessments: series.map((item) => {
       const values = results.flatMap((result) => {
         const subjectResult = result.subjects.find((entry) => entry.subjectId === subject.id);
-        const assessment = subjectResult?.assessments.find((entry) => entry.name === item.name);
+        const assessment = subjectResult?.assessments.find((entry) => entry.name === item.sourceName);
         return assessment ? [assessment] : [];
       });
-      return metricForAssessments(item, values, sheet);
+      return metricForAssessments(item, values, sheet, results.length);
     }),
   }));
 }
@@ -303,8 +307,10 @@ function buildStudentMetrics(students: Student[], series: AssessmentSeries[], re
   const resultById = new Map(results.map((result) => [result.studentId, result]));
   return students.map((student) => {
     const result = resultById.get(student.id);
-    const values = result?.subjects.flatMap((subject) => subject.assessments.filter((assessment) => series.some((item) => item.name === assessment.name))) ?? [];
-    const statuses = values.map((assessment) => assessmentStatus(assessment, sheet));
+    const statuses = result?.subjects.flatMap((subject) => series.map((item) => {
+      const assessment = subject.assessments.find((entry) => entry.name === item.sourceName);
+      return assessment ? assessmentStatus(assessment, sheet) : 'not-entered';
+    })) ?? [];
     return {
       student,
       pass: statuses.filter((status) => status === 'pass').length,
@@ -315,7 +321,7 @@ function buildStudentMetrics(students: Student[], series: AssessmentSeries[], re
   });
 }
 
-function metricForAssessments(series: AssessmentSeries, assessments: AssessmentResult[], sheet: SheetKind): AssessmentMetric {
+function metricForAssessments(series: AssessmentSeries, assessments: AssessmentResult[], sheet: SheetKind, studentCount: number): AssessmentMetric {
   const entered = assessments.filter((assessment) => assessment.percent !== null);
   const statuses = assessments.map((assessment) => assessmentStatus(assessment, sheet));
   return {
@@ -324,7 +330,7 @@ function metricForAssessments(series: AssessmentSeries, assessments: AssessmentR
     pass: statuses.filter((status) => status === 'pass').length,
     fail: statuses.filter((status) => status === 'fail').length,
     exempted: statuses.filter((status) => status === 'exempted').length,
-    notEntered: statuses.filter((status) => status === 'not-entered').length,
+    notEntered: assessments.length === 0 ? studentCount : statuses.filter((status) => status === 'not-entered').length,
   };
 }
 
