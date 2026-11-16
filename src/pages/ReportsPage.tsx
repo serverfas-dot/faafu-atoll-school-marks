@@ -12,10 +12,10 @@ import {
   Trophy,
   Users,
 } from 'lucide-react';
-import { ClassSemesterPicker } from '@/components/ClassSemesterPicker';
 import { OutcomeBar } from '@/components/report/OutcomeBar';
 import { StudentReportCard } from '@/components/report/StudentReportCard';
 import { GradeSubjectAnalysis } from '@/components/report/GradeSubjectAnalysis';
+import { GradePerformance } from '@/components/report/GradePerformance';
 import { ResultTable, type ResultRow } from '@/components/results/ResultTable';
 import { EmptyState, Notice, PageHeader, SelectField, Spinner } from '@/components/ui';
 import { computeGradeResults, formatPercent, type SheetKind, type StudentResult } from '@/lib/grading';
@@ -31,7 +31,7 @@ import {
   type GradeDistribution,
   type OutcomeSummary,
 } from '@/lib/reporting';
-import { classLabel, MARKS_SHEET_YEAR } from '@/lib/school';
+import { classLabel, MARKS_SHEET_YEAR, SEMESTERS } from '@/lib/school';
 import { useClassSemesterData } from '@/lib/useClassSemesterData';
 import { useClasses } from '@/lib/useClasses';
 import { useSchoolYears } from '@/lib/useSchoolYears';
@@ -39,12 +39,13 @@ import { cardClass, gradeBadgeClass, gradeBarClass, secondaryButtonClass } from 
 import { StudentPhoto } from '@/components/report/StudentPhoto';
 import { printReport } from '@/lib/printReport';
 
-type ReportView = 'analysis' | 'subject-analysis' | 'assessment' | 'semester' | 'class-pass' | 'aggregate';
+type ReportView = 'analysis' | 'subject-analysis' | 'performance' | 'assessment' | 'semester' | 'class-pass' | 'aggregate';
 
 const SECONDARY_AGGREGATE_CODES = new Set(['9BS', '9SC', '10BS', '10SC']);
 const REPORT_TABS: { id: ReportView; label: string; icon: typeof BarChart3 }[] = [
   { id: 'analysis', label: 'Student analysis', icon: BarChart3 },
   { id: 'subject-analysis', label: 'Grade subject analysis', icon: BookOpenCheck },
+  { id: 'performance', label: 'Grade performance', icon: BarChart3 },
   { id: 'assessment', label: 'Assessment outcomes', icon: ClipboardCheck },
   { id: 'semester', label: 'Semester final report', icon: FileText },
   { id: 'class-pass', label: 'Class pass report', icon: ShieldCheck },
@@ -208,23 +209,15 @@ export default function ReportsPage() {
             </div>
           </div>
           <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(0,560px)_1fr] lg:items-end">
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_170px] sm:items-end">
-              <ClassSemesterPicker
-                classes={classes}
-                classCode={classCode}
-                semester={semester}
-                onClassChange={(value) => {
-                  setClassCode(value);
-                  setSelectedId(null);
-                  setSelectedSubjectId('');
-                }}
-                onSemesterChange={(value) => {
-                  setSemester(value);
-                  setSelectedId(null);
-                }}
-              />
+            <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
               <SelectField label="School year" value={String(reportYear)} onChange={(value) => setReportYear(Number(value))}>
-                {years.length === 0 ? <option value={String(MARKS_SHEET_YEAR)}>{MARKS_SHEET_YEAR}</option> : years.map((item) => <option key={item.year} value={item.year}>{item.year}</option>)}
+                {years.length === 0 ? <option value={String(MARKS_SHEET_YEAR)}>{MARKS_SHEET_YEAR}</option> : years.map((item) => <option key={item.year} value={String(item.year)}>{item.year}</option>)}
+              </SelectField>
+              <SelectField label="Semester" value={String(semester)} onChange={(value) => { setSemester(Number(value)); setSelectedId(null); }}>
+                {SEMESTERS.map((item) => <option key={item.value} value={String(item.value)}>{item.label} ({item.dates})</option>)}
+              </SelectField>
+              <SelectField label="Grade" value={classCode} onChange={(value) => { setClassCode(value); setSelectedId(null); setSelectedSubjectId(''); }}>
+                {classes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </SelectField>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-600 lg:justify-end">
@@ -302,6 +295,18 @@ export default function ReportsPage() {
                 results={currentResults}
                 subjectId={selectedSubjectId}
                 onSubjectChange={setSelectedSubjectId}
+              />
+            )}
+            {view === 'performance' && (
+              <GradePerformance
+                className={classLabel(classCode, classes)}
+                semester={semester}
+                schoolYear={reportYear}
+                sheet={sheet}
+                students={currentStudents}
+                subjects={selectedState.data.subjects}
+                assessments={selectedState.data.assessments}
+                results={currentResults}
               />
             )}
             {view === 'assessment' && <AssessmentView outcomes={assessmentOutcomes} summary={assessmentSummary} sheet={sheet} />}

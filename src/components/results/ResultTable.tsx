@@ -54,7 +54,7 @@ export function ResultTable({ subjects, rows, removeFinalPercent }: { subjects: 
               {row.result.subjects.map((subject) => (
                 <SubjectCells key={subject.subjectId} percent={subject.percent} grade={subject.grade} />
               ))}
-              <td className={`${cellClass} border-l border-slate-200 font-semibold text-slate-900`}>{formatFinalValue(row.result.total, removeFinalPercent)}</td>
+              <td className={`${cellClass} border-l border-slate-200 font-semibold text-slate-900`}>{formatAmount(row.result.total)}</td>
               <td className={`${cellClass} font-semibold text-slate-900`}>{formatFinalValue(row.result.average, removeFinalPercent)}</td>
               <td className={cellClass}>
                 <GradeCell grade={row.result.finalGrade} />
@@ -67,6 +67,10 @@ export function ResultTable({ subjects, rows, removeFinalPercent }: { subjects: 
       </table>
     </div>
   );
+}
+
+function formatAmount(value: number | null): string {
+  return value === null ? '-' : String(Number(value.toFixed(2)));
 }
 
 function formatFinalValue(value: number | null, removePercent: boolean): string {
