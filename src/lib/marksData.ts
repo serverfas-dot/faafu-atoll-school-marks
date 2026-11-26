@@ -6,8 +6,8 @@ const PAGE_SIZE = 1000;
 export function sortStudents(students: Student[]): Student[] {
   return [...students].sort(
     (a, b) =>
-      a.roll_no.localeCompare(b.roll_no, undefined, { numeric: true }) ||
-      a.full_name.localeCompare(b.full_name),
+      a.full_name.localeCompare(b.full_name, undefined, { sensitivity: 'base' }) ||
+      a.roll_no.localeCompare(b.roll_no, undefined, { numeric: true }),
   );
 }
 
