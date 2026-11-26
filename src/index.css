@@ -26,6 +26,8 @@
     margin: 0;
     overflow: visible;
     background: #ffffff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   body > #root {
@@ -35,6 +37,8 @@
   .print-report-root {
     display: block !important;
     width: 100%;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .student-report-printable {
