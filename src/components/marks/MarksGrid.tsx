@@ -18,6 +18,7 @@ type Props = {
   visibility?: SubjectResultVisibility;
   allowClearAllMarks?: boolean;
   canEditMarks?: boolean;
+  editableAssessmentIds?: Set<string>;
   onSaved: () => void;
 };
 
@@ -38,7 +39,7 @@ function parseMark(raw: string, max: number): { value: number | null; valid: boo
   return { value: valid ? value : null, valid };
 }
 
-export function MarksGrid({ students, subject, schoolYear, assessments, savedMarks, sheet, visibility, allowClearAllMarks = false, canEditMarks = true, onSaved }: Props) {
+export function MarksGrid({ students, subject, schoolYear, assessments, savedMarks, sheet, visibility, allowClearAllMarks = false, canEditMarks = true, editableAssessmentIds, onSaved }: Props) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [absenceDraft, setAbsenceDraft] = useState<Record<string, AssessmentAbsence | null>>({});
   const [saving, setSaving] = useState(false);
@@ -203,13 +204,14 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
   const markInput = (student: Student, item: Assessment) => {
     const key = markKey(student.id, item.id);
     const absence = cellAbsence(student.id, item.id);
+    const editable = canEditMarks && (!editableAssessmentIds || editableAssessmentIds.has(item.id));
     return (
       <MarkInput
         value={cellValue(student.id, item.id)}
         absence={absence}
         invalid={invalidKeys.has(key)}
         max={item.max_mark}
-        disabled={!canEditMarks}
+        disabled={!editable}
         onAbsence={(next) => setAbsence(student.id, item.id, next)}
         ariaLabel={`${student.full_name} ${item.name} mark out of ${item.max_mark}`}
         onChange={(next) => {
@@ -220,7 +222,8 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
     );
   };
 
-  const canSave = canEditMarks && changes.length > 0 && invalidKeys.size === 0 && !saving;
+  const editableCount = editableAssessmentIds ? assessments.filter((item) => editableAssessmentIds.has(item.id)).length : assessments.length;
+  const canSave = canEditMarks && editableCount > 0 && changes.length > 0 && invalidKeys.size === 0 && !saving;
 
   const unitItems = assessments.filter((item) => item.part === 'unit');
   const termItems = assessments.filter((item) => item.part === 'term');
@@ -248,7 +251,7 @@ export function MarksGrid({ students, subject, schoolYear, assessments, savedMar
           </span>
           <button type="button" onClick={() => void handleSave()} disabled={!canSave} className={primaryButtonClass}>
             <Save className="h-4 w-4" aria-hidden />
-            {!canEditMarks ? 'Entry closed' : saving ? 'Saving...' : 'Save marks'}
+            {!canEditMarks || editableCount === 0 ? 'Entry closed' : saving ? 'Saving...' : 'Save marks'}
           </button>
           {allowClearAllMarks && (
             <button type="button" onClick={() => void requestClearAllMarks()} disabled={saving || clearBusy} className={dangerButtonClass}>

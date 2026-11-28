@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { buildMarkIndex, sheetKindFor } from '@/lib/grading';
 import { MARKS_SHEET_YEAR, SEMESTERS, semesterLabel } from '@/lib/school';
 import { useSchoolYears } from '@/lib/useSchoolYears';
-import { formatWindowDate, isMarkEntryWindowOpen, listMarkEntryWindows, type MarkEntryWindow } from '@/lib/markEntryWindows';
+import { isMarkEntryWindowOpen, listAssessmentMarkEntryWindows, type AssessmentMarkEntryWindow } from '@/lib/markEntryWindows';
 import { useClasses } from '@/lib/useClasses';
 import { cardClass } from '@/lib/styles';
 import { useClassSemesterData } from '@/lib/useClassSemesterData';
@@ -21,9 +21,10 @@ export default function MarksEntryPage() {
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [assignedIds, setAssignedIds] = useState<string[] | null>(null);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
-  const [entryWindow, setEntryWindow] = useState<MarkEntryWindow | null>(null);
+  const [entryWindows, setEntryWindows] = useState<AssessmentMarkEntryWindow[]>([]);
   const [windowLoading, setWindowLoading] = useState(true);
   const [windowError, setWindowError] = useState<string | null>(null);
+  const [windowNow, setWindowNow] = useState(() => new Date());
   const { data, loading, error, reload } = useClassSemesterData(classCode, schoolYear, semester);
   const classOption = classes.find((item) => item.value === classCode);
 
@@ -39,12 +40,12 @@ export default function MarksEntryPage() {
     let cancelled = false;
     setWindowLoading(true);
     setWindowError(null);
-    listMarkEntryWindows(schoolYear)
+    listAssessmentMarkEntryWindows(schoolYear)
       .then((rows) => {
-        if (!cancelled) setEntryWindow(rows.find((row) => row.semester === semester) ?? null);
+        if (!cancelled) setEntryWindows(rows);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setWindowError(err instanceof Error ? err.message : 'Could not check the mark entry window.');
+        if (!cancelled) setWindowError(err instanceof Error ? err.message : 'Could not check assessment mark entry windows.');
       })
       .finally(() => {
         if (!cancelled) setWindowLoading(false);
@@ -52,7 +53,12 @@ export default function MarksEntryPage() {
     return () => {
       cancelled = true;
     };
-  }, [schoolYear, semester]);
+  }, [schoolYear]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setWindowNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!profile || isAdmin) return;
@@ -74,8 +80,11 @@ export default function MarksEntryPage() {
     };
   }, [profile, isAdmin]);
 
-  const windowOpen = isMarkEntryWindowOpen(entryWindow);
-  const canEditMarks = isAdmin || windowOpen;
+  const openAssessmentIds = useMemo(
+    () => new Set(entryWindows.filter((entryWindow) => entryWindow.semester === semester && isMarkEntryWindowOpen(entryWindow, windowNow)).map((entryWindow) => entryWindow.assessment_id)),
+    [entryWindows, semester, windowNow],
+  );
+  const canEditMarks = isAdmin || openAssessmentIds.size > 0;
 
   const visibleSubjects = useMemo(() => {
     if (!data) return [];
@@ -89,6 +98,15 @@ export default function MarksEntryPage() {
     () => (data && activeSubject ? data.assessments.filter((item) => item.subject_id === activeSubject.id) : []),
     [data, activeSubject],
   );
+
+  const openWindowLabels = useMemo(() => {
+    if (!data) return [];
+    const nameById = new Map(data.assessments.map((item) => [item.id, item.name]));
+    return entryWindows
+      .filter((entryWindow) => entryWindow.semester === semester && isMarkEntryWindowOpen(entryWindow, windowNow))
+      .map((entryWindow) => nameById.get(entryWindow.assessment_id))
+      .filter((name): name is string => Boolean(name));
+  }, [data, entryWindows, semester, windowNow]);
 
   const activeVisibility = data?.visibility.find((row) => row.subject_id === activeSubject?.id);
   const savedMarks = useMemo(() => buildMarkIndex(data?.marks ?? []), [data]);
@@ -143,12 +161,10 @@ export default function MarksEntryPage() {
       {assignmentError && <Notice tone="error">{assignmentError}</Notice>}
       {windowError && <Notice tone="error">{windowError}</Notice>}
       {!isAdmin && !windowLoading && !windowError && (
-        <Notice tone={windowOpen ? 'success' : 'info'}>
-          {entryWindow
-            ? windowOpen
-              ? `Marks entry is open from ${formatWindowDate(entryWindow.opens_at)} until ${formatWindowDate(entryWindow.closes_at)}. You can save marks only for subjects assigned to you.`
-              : `Marks entry is closed. This semester was scheduled from ${formatWindowDate(entryWindow.opens_at)} until ${formatWindowDate(entryWindow.closes_at)}. The admin must set a new window before teachers can save marks.`
-            : `No marks-entry window has been set for ${schoolYear} ${semesterLabel(semester)}. Teachers can view marks but cannot save changes until the admin sets opening and closing times.`}
+        <Notice tone={openWindowLabels.length > 0 ? 'success' : 'info'}>
+          {openWindowLabels.length > 0
+            ? `Marks entry is open for: ${openWindowLabels.join(', ')}. You can type marks only for those assessments and only for subjects assigned to you. All other assessments are view-only.`
+            : `Marks entry is closed for ${schoolYear} ${semesterLabel(semester)}. You can view the marks sheet, but you cannot save changes until the admin opens an assessment for entry.`}
         </Notice>
       )}
 
@@ -179,6 +195,7 @@ export default function MarksEntryPage() {
           visibility={activeVisibility}
           allowClearAllMarks={isAdmin}
           canEditMarks={canEditMarks}
+          editableAssessmentIds={isAdmin ? undefined : openAssessmentIds}
           onSaved={reload}
         />
       )}
